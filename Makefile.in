@@ -1,0 +1,132 @@
+install = @install@
+
+prefix = @prefix@
+datarootdir = @datarootdir@
+datadir = @datadir@
+docdir = @docdir@
+includedir = @includedir@
+libdir = @libdir@
+
+pkgdatadir = $(datadir)/@package@
+pkglibdir = $(libdir)/@package@
+pkgincludedir = $(includedir)/@package@
+pkgdocdir = $(docdir)/@package@
+
+edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses perl/UI/CBasic.pm perl/UI/CExecute.pm perl/UI/Common.pm perl/UI/GTKBasic.pm perl/UI/GTKExecute.pm perl/UI/GTKMenubar.pm perl/UI/GTKOutput.pm perl/UI/GTKWarbar.pm perl/UI/Reports.pm
+
+edit = sed \
+       -e 's|@datadir[@]|$(pkgdatadir)|g' \
+       -e 's|@prefix[@]|$(prefix)|g'
+
+all: util/libutil.a discovery/apcore discovery/hashtest $(edit_files)
+util/libutil.a: util/.deps
+	cd util && make libutil.a
+
+util/.deps:
+	cd util && make .deps
+
+discovery/apcore: discovery/.deps
+	cd discovery && make apcore
+
+discovery/hashtest: discovery/.deps
+	cd discovery && make hashtest
+
+discovery/.deps:
+	cd discovery && make .deps
+
+clean:
+	cd util && make clean
+	cd discovery && make clean
+	rm $(edit_files)
+
+$(edit_files): Makefile $@
+	$(edit) '$@.in' > $@
+
+ui/wicrawl: ui/wicrawl.in
+ui/wicrawl-gtk: ui/wicrawl-gtk.in
+ui/wicrawl-curses: ui/wicrawl-curses.in
+perl/UI/CBasic.pm: perl/UI/CBasic.pm.in
+perl/UI/CExecute.pm: perl/UI/CExecute.pm.in
+perl/UI/Common.pm: perl/UI/Common.pm.in
+perl/UI/GTKBasic.pm: perl/UI/GTKBasic.pm.in
+perl/UI/GTKExecute.pm: perl/UI/GTKExecute.pm.in
+perl/UI/GTKMenubar.pm: perl/UI/GTKMenubar.pm.in
+perl/UI/GTKOutput.pm: perl/UI/GTKOutput.pm.in
+perl/UI/GTKWarbar.pm: perl/UI/GTKWarbar.pm.in
+perl/UI/Reports.pm: perl/UI/Reports.pm.in
+
+install: all
+	$(install) -D ui profiles hooks $(pkgdatadir)
+	rm $(pkgdatadir)/ui/wicrawl*.in
+	$(install) -D doc $(pkgdocdir)
+	$(install) -D discovery plugins utils $(pkglibdir)
+
+install-old:
+	# Directories, perl modules, and conf files
+	@$(INSTALL) -d $(INSTALLDIR)/include/perl
+	@$(INSTALL) include/perl/*.pm $(INSTALLDIR)/include/perl/
+	@$(INSTALL) -d $(INSTALLDIR)/include/perl/Text/
+	@$(INSTALL) include/perl/Text/*.pm $(INSTALLDIR)/include/perl/Text/
+	@$(INSTALL) -d $(INSTALLDIR)/include/perl/UI/
+	@$(INSTALL) include/perl/UI/*.pm $(INSTALLDIR)/include/perl/UI/
+	@$(INSTALL) -D profiles/*.conf $(INSTALLDIR)/profiles/
+	@$(INSTALL) -D util/dhcp/work.linux-2.2/client/dhclient $(INSTALLDIR)/util/dhcp/dhclient
+	# Docs
+	@for file in `ls doc/ | grep -v CVS` ; do \
+		install -D -m 644 doc/$$file $(DOCDIR)/$$file; \
+	done
+	# Plugins and plugin-engine
+	@for dir in `ls plugins/ | grep -v CVS | grep -v plugin-engine` ; do \
+		install -d $(INSTALLDIR)/plugins/$$dir; \
+	done
+	@for file in `find plugins/*/* | grep -v CVS` ; do \
+		install -D -m 0755 $$file $(INSTALLDIR)/$$file; \
+	done
+	@cat plugins/plugin-engine | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
+		> $(INSTALLDIR)/plugins/plugin-engine
+	@chmod 755 $(INSTALLDIR)/plugins/plugin-engine
+	# UI and themes
+	@$(INSTALL) -D -m 0644 ui/wicrawl-gtk.conf $(ETCDIR)/wicrawl-gtk.conf
+	@$(INSTALL) -D -m 0644 wicrawl.conf $(ETCDIR)/wicrawl.conf
+	@for file in `find ui/ | grep -v CVS | grep -v wicrawl-gtk` ; do \
+		if [ -f $$file ] ; then \
+			install -D $$file $(INSTALLDIR)/$$file; \
+		fi \
+	done
+	@cat ui/wicrawl-gtk | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
+		> $(INSTALLDIR)/ui/wicrawl-gtk
+	@cat ui/wicrawl-curses | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
+		> $(INSTALLDIR)/ui/wicrawl-curses
+	@cat ui/wicrawl | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
+		> $(BINDIR)/wicrawl
+	@chmod 755 $(INSTALLDIR)/ui/wicrawl-curses
+	@chmod 755 $(INSTALLDIR)/ui/wicrawl-gtk
+	@chmod 755 $(BINDIR)/wicrawl
+	@echo
+	@echo "Install Completed."
+	@echo
+	@echo "Run $(BINDIR)/wicrawl to get started"
+	@echo
+
+uninstall:
+	@echo
+	@echo -e "Sorry, not implemented yet, but here are the places we touched:"
+	@echo
+	@echo "Installed base files in:   [$(INSTALLDIR)]"
+	@echo "Installed binaries in:     [$(BINDIR)]"
+	@echo "Installed config files in: [$(ETCDIR)]"
+	@echo "Installed docs in:         [$(DOCDIR)]"
+	@echo
+
+dist:
+	@mkdir -p $(DISTDIR)
+	@for file in `find . | grep -v CVS | grep -v ^.$$ | grep -v ^\./$(DISTDIR)` ; do \
+		if [ -f $$file ] ; then \
+			install -D $$file $(DISTDIR)/$$file; \
+		fi \
+	done
+	@tar -czf $(PACKAGEFILE) $(DISTDIR)
+	@echo -e "\nOutput package is in $(PACKAGEFILE)\n"
+
+tags:
+	find . -name \*.c -or -name \*.h | xargs etags
