@@ -1,0 +1,17 @@
+# This is the history file, the point is to detail the creation of
+# the pickupline program.  The most recent actions should be on the top.
+
+# <date (yyyy.mm.dd)> <name> <contribution>
+
+2005.08.12  Dean     fixed placement of "guessing netmask" statement
+2005.08.12  Dean     fixed some udp capture issues
+2005.08.08  Dean     fixed embarrassing eth1 bug. thanks to Eliot Phillips!
+2005.08.08  Dean     fixed DHCP issue I think
+2005.07.27  Dean     added thread for UDP to capture DHCP requests
+2005.07.27  Brandon  fixed signedness problem
+2005.07.27  Brandon  made resolve gw work properly
+2005.07.20  Dean     added thread for ARP
+2005.06.29  Dean     cleaned interface for defcon version
+2005.06.29  Brandon  wrote resolvegw command
+2005.06.26  Dean     dropline put in alternate thread
+2005.06.26  Dean     History file started

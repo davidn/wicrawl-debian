@@ -1,0 +1,8 @@
+This is a plugin that will bruteforce wpa pre-shared keys based on a dictionary
+attack.  It uses cowpatty, and requires that john the ripper is already
+installed.  It will first try the pcap file that was created by discovery, and
+then will run tcpdump until it finds a handshake, and will then run coWPAtty on
+it.
+
+Thanks to Josh Wright and all the other people involved in it for doing all the
+hard work by creating CoWPAtty, :).  See cowpatty/README for more details on it.

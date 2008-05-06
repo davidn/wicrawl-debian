@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# This is a template bash plugin script for wicrawl
+# http://midnightresearch.com/projects/wicrawl
+
+
+while getopts "b:e:i:n:r:s:v:" options; do
+  case $options in
+    b ) bssid=$OPTARG;;
+    e ) encryption=$OPTARG;;
+    i ) interface=$OPTARG;;
+    n ) nick=$OPTARG;;
+    r ) run=$OPTARG;;
+    s ) ssid=$OPTARG;;
+    v ) version=$OPTARG;;
+    * ) echo "Not sure what $OPTARG is, ignoring for now";;
+  esac
+done
+
+echo -ne "  ============ <example bash plugin > ==============\n"
+echo -ne "  * Hi, I'm a bash plugin.  Here is what I know so far:\n"
+echo -ne "  * The SSID of the AP I want is:     [$ssid]\n"
+echo -ne "  * The BSSID of the AP I want is:    [$bssid]\n"
+echo -ne "  * The interface I should use is:    [$interface]\n"
+echo -ne "  * The encryption type is:           [$encryption]\n"
+echo -ne "  * The nick I'll use to associate is:[$nick]\n"
+echo -ne "  * The plugin-engine run number is:  [$run]\n"
+echo -ne "  * The of wicrawl that called me is: [$version]\n"
+echo -ne "  * I'll sleep for a second for you to absorb all that....\n"
+sleep 2
+echo -ne "  * OK, See ya...\n"
+echo -ne "  =========== </example bash plugin > ==============\n"
+
+exit 0
+
+# vim:ts=2:sw=2:sts=0

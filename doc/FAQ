@@ -1,0 +1,118 @@
+(note the official version is maintained here:
+http://midnightresearch.com/wiki/index.php/FAQ)
+
+Q:  Why another wireless scanner?
+
+A:  Existing scanners are great and all (kismet, etc), but the problem is that
+    just knowing if an Access Point exists isn't enough information these days.
+    Not many people care just to see that a access point exists, they are more
+    likely care about some other goal, like if they can get to the internet or
+    not.
+
+    wicrawl adds a set of plugins that can determine this extra information for
+    you so you don't have to check each access point individually.  When you
+    combine this with profiles, you can tune wicrawl to get only the
+    information that you actually care about.
+ 
+
+Q:  What cards are supported?
+
+A:  Please see the following URL for more details.  We are always interested in
+    supporting as comprehensive a list of cards as possible.  Please let us know 
+    if it is not working with your card.
+
+    http://midnightresearch.com/wiki/index.php/CardSupport
+
+
+Q:  I am using multiple cards, but I can't seem to get any that get to the
+    netowrk.  What's going on?
+
+A:  Make sure that the card that you are doing discovery from (by default the
+    first card that is selected.) is of similar strength (wattage/antenna, etc)
+    as the ones that you are running plugins through.  If the card that you are
+    doing discovery through is more powerful than the one that you're using to
+    run plugins, you may never be able to associate to out of range APs (that
+    are in range for the initial card)
+
+
+Q:  Is it legal to connect through other peoples networks?
+
+A:  The short answer is to be completely safe, you're best off only
+    connecting to networks that you own or control.  You should set the SSID
+    filter accordingly.
+
+    The long answer is that this is a grey area not covered by much case
+    law.  The following link is a paper that examines and describes current
+    ethical and legal issues.  Remember, at the end of the day though only
+    you are responsible for your actions, so if you have any doubt about
+    what you should be doing, make sure to filter the SSID list to APs that
+    are controlled by you, or only use profiles that only do non-intrusive
+    actions.
+   
+    "How to avoid ethical and Legal issues in Wireless Network Discovery"
+    http://www.sans.org/rr/whitepapers/wireless/176.php
+
+
+Q:  Can I use wicrawl as discovery only (like kismet, etc).  
+
+A:  Yes, just use the discovery profile, and no additional plugins will be run.
+    This should mimic Kismet usage, and you can still see all information
+    through the GUI.
+
+
+Q:  I have configured a plugin to run, but it never does, what's up (yo)?
+
+A:  There are a couple possible ways to get into this situation:
+	- Perhaps you never get to the proper event level for your plugin.  For
+	  example if you have a plugin that's set to run during the
+	  "have-internet" event level, but you can't get an address on the
+	  network, the plugin will never run.
+	- If your plugin for a given event level has a high run-level, and a
+	  plugin with a lower run-level (so it gets executed first) increases
+	  the event level before your plugin has a chance to run.  We hope to
+	  add a way that a plugin can be configured to always run for a given
+	  event level, even if the event level has been changed.
+
+
+Q:  I can't see any interfaces in the GUI
+
+A:  Check that you're running as root, and that your interfaces are "up" (a la
+    ifconfig ath0 up)
+
+
+Q:  What are "runs" as shown in the GUI?
+
+A:  A run is a given run-through of the Access Point queue.  The queue is
+    determined at the beginning of a run and will run until it's done.  At that
+    point depending on what scheduling you use, the plugin-engine will get a
+    new queue of APs to run on.  Runs occur even if you have discovery set to
+    always run.
+
+
+Q:  How can I help?
+
+A:  There are a few ways:
+	- Link to us
+	- Spread the word, =)
+	- Send us bug reports
+	- Developer work, adding new plugins is easy, and a good place to
+	  start.  Making our existing plugins more portable would also be a
+	  great help as we add support for more platforms.
+	- Distro support -- We'd like to be considered for being added into
+	  directly into distribution specific repsitories, and this includes
+	  security live Distro's etc.  Of course this is a lot of work to
+	  support all of these, so we're looking for some help.
+	- Check out the TODO list (in doc/TODO in the src), and see if
+	  there's anything that looks interesting to you.
+
+ 
+Q:  Who are those masked men?
+
+A:  This is the developer list:
+    http://midnightresearch.com/projects/wicrawl/#developers
+
+    And this is Midnight Research Laboratories, the group that we belong to.
+    If you're in the San Francisco Bay Area, try coming to a meeting some
+    time, =)
+    http://midnightresearch.com/
+

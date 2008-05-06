@@ -1,0 +1,42 @@
+#!/usr/bin/perl -w
+#
+# template for post-ap hook for wicrawl
+#
+# In order to be "enabled", this file must be set executable
+#
+# http://midnightresearch.com/projects/wicrawl
+
+use strict;
+use Getopt::Std;
+
+$Getopt::Std::STANDARD_HELP_VERSION='1';
+
+my $bssid=0; my $encryption=""; my $ssid=0; my $nick=0; my $version=0;
+our($opt_b, $opt_e, $opt_i, $opt_s, $opt_n, $opt_v);
+getopts ("b:e:i:n:s:v:");
+
+if(    (!defined $opt_b) || (!defined $opt_e)
+    || (!defined $opt_n) || (!defined $opt_s)
+    || (!defined $opt_v)) {
+  print "  [!] usage $0 <options>\n";
+  print "\t-b <bssid>\n";
+  print "\t-e <encryption type>\n";
+  print "\t-n <nickname>\n";
+  print "\t-s <ssid>\n";
+  print "\t-v <version>\n";
+	exit 1;
+}
+
+$bssid =      $opt_b if(defined $opt_b);
+$encryption = $opt_e if(defined $opt_e);
+$ssid =       $opt_s if(defined $opt_s);
+$nick =       $opt_n if(defined $opt_n);
+$version =    $opt_v if(defined $opt_v);
+
+print "  [*] 'Allo, I'm a template for the post-ap hook\n";
+print "       Use me to move your antenna, or for anything that you want run\n";
+print "       everytime after a given Access Point is run\n";
+
+exit 0;
+
+# vim:ts=2:sw=2:sts=0

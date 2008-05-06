@@ -1,0 +1,121 @@
+# Sneaking through the code are we.? ;)
+style "default"
+{
+
+	GtkEntry::cursor_color    = "#FFBD00"
+	GtkTextView::cursor_color    = "#FFBD00"
+	NautilusIconContainer::frame_text = 1
+
+	fg[NORMAL]        = "#20fe00"	#CCCC99
+	fg[ACTIVE]        = "#CCCC99"
+	fg[INSENSITIVE]   = "#120F00"
+	fg[PRELIGHT]      = "#E2e2e2"
+	fg[SELECTED]      = "#E2E2E2"	
+
+	bg[ACTIVE]        = "#101010"
+	bg[NORMAL]        = "#202020"
+	bg[INSENSITIVE]   = "#303030"
+	bg[PRELIGHT]      = "#303030"
+	bg[SELECTED]      = "#000000"	#454545
+
+	base[NORMAL]      = "#000000"
+	base[ACTIVE]      = "#202020"
+	base[INSENSITIVE] = "#272727"
+	base[PRELIGHT]    = "#303030"
+	base[SELECTED]    = "#20fe00" 	#9-
+
+	text[NORMAL]      = "#20fe00"	#E2E2E2
+	text[ACTIVE]      = "#20fe00"	#same
+	text[PRELIGHT]    = "#000000"	#0-
+	text[SELECTED]    = "#000000"	#0-
+	text[INSENSITIVE] = "#000000"	#0-
+
+	GtkRange::slider_width = 12 
+	GtkRange::stepper_size = 12
+	GtkScrollbar::min_slider_length = 15
+	GtkCheckButton::indicator_size=10
+	GtkRadioButton::indicator_size=12
+	GtkStatusbar::shadow_type = none
+	
+	GtkNotebook::tab_vborder = 1
+	GtkNotebook::tab_hborder = 1
+	xthickness = 1
+	ythickness = 1
+
+	engine "mist"
+ 	{
+	}
+	engine "pixmap"
+	{
+	image
+	{
+		function          = ARROW
+		recolorable       = FALSE
+	      overlay_file      = "termarrowleft.gif"
+	      overlay_border    = { 0, 0, 0, 0 }
+	      overlay_stretch   = FALSE
+	      arrow_direction   = LEFT
+	}
+	image
+	{
+		function          = ARROW
+		recolorable       = FALSE
+	      overlay_file      = "termarrowright.gif"
+	      overlay_border    = { 0, 0, 0, 0 }
+	      overlay_stretch   = FALSE
+	      arrow_direction   = RIGHT
+	}
+	image
+	{
+		function          = ARROW
+		recolorable       = FALSE
+	      overlay_file      = "termarrowup.gif"
+	      overlay_border    = { 0, 0, 0, 0 }
+	      overlay_stretch   = FALSE
+	      arrow_direction   = UP
+	}
+	image
+	{
+		function          = ARROW
+		recolorable       = FALSE
+	      overlay_file      = "termarrowdown.gif"
+	      overlay_border    = { 0, 0, 0, 0 }
+	      overlay_stretch   = FALSE
+	      arrow_direction   = DOWN
+	}
+	}
+}
+
+style "menuitem"
+{
+        text[PRELIGHT]          = "#F2F2F2"
+        fg[PRELIGHT]          = "#F2F2F2"
+	engine "pixmap"
+	{
+	image
+	    {
+	      function          = ARROW
+	      recolorable       = FALSE
+	      overlay_file      = "termarrowright.gif"
+	      overlay_border    = { 0, 0, 0, 0 }
+	      overlay_stretch   = FALSE
+	      arrow_direction   = RIGHT
+	    }
+	}
+}
+
+style "menu" 
+{
+	ythickness = 2
+	xthickness = 2
+} 
+
+class "GtkWidget" style "default"
+class "GtkMenu" style "menu"
+
+widget_class "*.GtkMenuItem.*" style "menuitem"
+widget_class "*.GtkImageMenuItem.*" style "menuitem"
+widget_class "*.GtkAccelMenuItem.*" style "menuitem"
+widget_class "*.GtkRadioMenuItem.*" style "menuitem"
+widget_class "*.GtkCheckMenuItem.*" style "menuitem"
+widget_class "*.GtkMenu.*" style "menuitem"

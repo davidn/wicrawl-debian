@@ -1,0 +1,40 @@
+#!/usr/bin/perl -w
+use strict;
+use Curses::UI;
+
+my $basedir;
+# Set basedir here so we can set the lib path dynamically.
+BEGIN { 
+	$basedir="/usr/local/wicrawl/";
+}
+
+# Common UI Library
+use lib "$basedir/include/perl/";
+use UI::Common;
+use UI::CMenubar;
+use UI::CBasic;
+use UI::CAdvanced;
+use UI::COutput;
+
+# Set UI type
+UI::Common->guitype('curses');
+
+# Check to make sure that the effective user id is 0. got root?
+if($> != 0) {
+	print "\n [!!] Sorry you need to be root to run this\n";
+	exit 1;
+}
+
+my $cui = new Curses::UI( -color_support => 1 );
+
+UI::CMenubar->generate($cui);
+UI::CBasic->generate($cui);
+UI::CAdvanced->generate($cui);
+UI::COutput->generate($cui);
+
+# yeah kids, no p0wning w/o permission ;)
+my $warn="[!!!] Wicrawl is a tool intended for security professionals, Please\n";
+$warn.="act responsibly.  Use the SSID filters to scan only devices you control [!!!]\n\n";
+UI::COutput->lprint(2,1, $warn);
+
+$cui->mainloop();

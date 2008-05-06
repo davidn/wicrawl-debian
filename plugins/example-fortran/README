@@ -1,0 +1,5 @@
+Compile with Intel FORTRAN:
+
+	ifort my_plugin.f90 -o my_plugin
+
+This plugin doesn't do anything except log, obviously.

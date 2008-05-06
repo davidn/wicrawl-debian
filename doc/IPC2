@@ -1,0 +1,24 @@
+Overview:
+
+The IPC2 subsystem is an implementation of a stream based protocol
+used for bidirectional communication with apcore, the wicrawl
+discovery engine.  The IPC2 subsystem complements the IPC fifo used
+for unidirectional communication of discovered radios to the plugin
+engine.
+
+To enable IPC2, simply pass --ipc2 or -s to apcore, followed by the
+name of a unix socket to create.  
+
+To talk to the IPC2 socket, connect to it like any UNIX socket and
+issue a valid IPC2 command.
+
+IPC2 Command list:
+
+filter STRING: set the current pcap filter string to STRING.  If
+STRING is omitted, no filter string will be applied and all frames
+will be analyzed.
+
+shutdown: immediately shutdown apcore.
+
+version: respond with apcore's version number.  This can be used to
+infer apcore's support for certain IPC2 messages.

@@ -1,0 +1,30 @@
+Getip plugin will attempt to obtain access point's external internet
+ip address by using easside and norsside to inject UDP traffic into
+encrypted and unencrypted networks to a buddy server listening on a
+public ip somewhere on the internet. The buddy server will in turn
+provide us the source ip address of an access point sending us
+injected UDP traffic. 
+
+With this in mind, you must have access to the internet to gain access 
+to the buddy-server or host buddy-server on your own box which will be
+accessible by the access point through its wan interface (e.g. you have
+evdo card with a public ip address which can be used to host buddy
+server). It does not make sense to use IP address on a local network
+since it will not provide access point's public ip address.
+
+Please specify the ip address of buddy server in plugin.conf file.
+Below is a sample configuration of buddy-ip address being 4.3.2.1:
+
+%plugin_env= ( 
+              "buddy_ip" => "4.3.2.1",
+             );
+             
+It is suggested that you edit /etc/wicrawl/wicrawl.conf to set $enableMadwifiHack=1;
+in order for injection to work properly.
+
+Next follow these steps:
+1) run wicrawl and set interface (ath0 in my case)
+2) run wicrawl in discovery mode first
+3) leave checkmarks next to "interesting" APs
+4) select "getip" profile from drop down
+5) run wicrawl in "manual mode" and watch IPs coming ;-) 

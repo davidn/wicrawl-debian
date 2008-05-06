@@ -1,0 +1,20 @@
+text_announcement(s):
+        This plugin just announces through text to speech the latest
+        wicrawl events.  Curently there are just hooks for new discovery,
+        have IP, and have internet.  It requires 'flite' (festival lite
+        from Carnegie Mellon) which can be found here (and of course any
+        of its requirements, like a working soundcard, etc):
+
+                http://www.speech.cs.cmu.edu/flite/
+
+        You can enable each hook independently, so if you only want to be
+        notified when you can get to the internet, just enable the hook in
+        only the appropriate hook directory.
+
+        Like the other hooks, this is not enabled by default (it can get a
+        bit annoying after a while, =).  One bug (I guess) is that
+        announcments are not queued, so if one announcement happens during
+        another, the second is not played (since the DSP device is busy).
+        We could add locking here, but generally I'm not sure that I want
+        that many announcments played.  If you want this announcment
+        queueing feature, put in a request and we can fix it.

@@ -1,0 +1,7 @@
+This plugin is based on pickup line:
+
+	http://pickupline.berlios.de
+
+It will attempt to bypass captive portals by using only "authenticated" MAC
+addresses that it can find on the local network.  It will then spoof the MAC
+and IP, bring up the interface, and re-associate.

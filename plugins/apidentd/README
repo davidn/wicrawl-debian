@@ -1,0 +1,11 @@
+APIdentd 0.1
+------------
+By: Matthew Benenati <dk.mak0[at]gmail.com>
+Updated by Aaron Peterson <aaron@midnightresearch.com>
+
+APIdentd is a plugin for Wicrawl that will report the manufacturer of any found
+access points by comparing the vendor code of the BSSID to a list of known
+vendor codes.  It takes the input from a filtered version of the ieee oui
+database text file directly.
+
+Run the update-oui-headers.sh script to get the latest list directly from IEEE.

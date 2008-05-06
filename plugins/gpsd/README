@@ -1,0 +1,21 @@
+Gpsd:
+        GPSD is a hook that will take the current coordinate information
+        from gpsd, and place it in the xml file which gets put into the
+        wicrawl GUI.   It is implemented in perl, and has some
+        dependencies:
+                Net::GPSD
+                gpsd
+
+        You can get the perl module by doing:
+
+          perl -MCPAN -e 'install Net::GPSD';
+
+        and GPSD itself comes from here:
+          http://gpsd.berlios.de/
+
+        Though you probably have native packages in your distribution
+        (debian and ubuntu do anyway, and they have .rpm's on the site for
+        download).
+
+        As long as your GPS unit is supported by GPSD, then it should work
+        fine with wicrawl.

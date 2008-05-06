@@ -1,0 +1,58 @@
+Discovery:
+	- Get WPA data and send to discovery
+	- Support for ralink devices (rt73 driver)
+	- Test multi-card simultaneous discovery, split the channels between
+	  the two cards.
+	- Gather and quantify card-specific functionality
+		- use lorcon?
+	- Grab actual traffic and record IP info IP info is important if we
+	  want to use it to seed authorized MAC finding
+	- Traffic "filters" that can be registered per plugin, and a match flag
+	  in the IPC (partially done).
+
+Plugin-engine:
+	- Handle WEP/WPA better
+	- Put plugin dependencies in the plugin.conf
+	- Use the card-specific functionality in scheduling and plugins
+	  (especially madwifi)
+	- Fix annoying @@basedir@@ crap
+	- Support for different types of rendered text output (like html/pdf)
+	- Make the FIFO a network link so we can have multiple nodes.  Also, we
+	  need to add a IPC message for the host computer.
+
+Plugins:
+	- Push more config options into plugin.conf instead of plugin scripts
+	- FPGA picocrack plugin
+	- file snarfing (network and network-share) plugin
+	- Spectrum analyzer wi-spy plugin
+	- Figure out why text to speech has output twice
+	- Metasploit plugin
+	- Merge cowpatty trees, and fix radiotap
+	- Wesside plugin
+	- Coordinates -> KML 
+	- Fix nessus plugin to have config to scan either AP or local subnet
+
+General:
+	- Push some of the common actions (like associate, and dhcp) into a
+	  central program (apcore?)
+	- Need a central repository with a super simple interface to share info
+	  like:
+		- mac addresses on a given AP
+	- Need to automagically bring up wireless interfaces (so they don't
+	  have to be "up" previous to starting wicrawl).
+	- RPM & DEB packages
+	- Pull out common functions between plugin-engine and UI (.pm's?)
+	- Documentation
+		- Man pages
+		- HTML "manual" ?
+
+UI:
+	- GUI
+		- Allow card list to be "refreshed" in GUI
+		- Change "Start in Manual Mode"
+		      To "Start Selected APs" or something similar
+		- Allow user to scroll in output windows while running
+		- Fix "jerky" output windows while running
+	- TUI
+		- Test
+		- See if the curses UI plugins can be included easily

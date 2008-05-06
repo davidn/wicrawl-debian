@@ -1,0 +1,33 @@
+This is a plugin for ettercap, which is (according to the site) a "suite for
+man in the middle attacks on LAN.  It features sniffing of live connections,
+content filtering on the fly and many other interesting tricks."
+
+The plugin requires the ettercap is already installed on the system, and is in
+the $PATH.  The default configuration will run ettercap for 5 minutes to
+collect users/passwords, and any other target data that it collects.  You can
+configure extra options in the plugin in the plugin.conf.  These are the
+default configurable options:
+
+This is to specify extra attacks, or ettercap plugins.  To see a list of extra
+attacks available, try ettercap -P list
+
+	"ettercap_extra_attacks" => "",
+
+
+Any extra parameters you want passed to ettercap on the command line
+
+	"ettercap_extra_cli_parameters" => "",
+
+
+Setting this to '1' will configure ettercap to only run against the .pcap file
+collected during discovery, and don't actively sniff the network now.
+
+	"ettercap_run_pcap_only" => "0";
+
+
+The length of time to run ettercap (in seconds)
+
+	"ettercap_runtime" => "300"
+
+This plugin was tested against the 0.7.3 version of ettercap.  Thanks to the
+ettercap developers for a great tool.

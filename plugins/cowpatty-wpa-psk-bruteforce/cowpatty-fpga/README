@@ -1,0 +1,215 @@
+coWPAtty - Brute-force dictionary attack against WPA-PSK.
+
+Copyright(c) 2004-2005, Joshua Wright <jwright@hasborg.com>
+
+$Id: README,v 1.1 2007-08-04 07:26:09 sith Exp $
+
+--------------------------------------------------------------------------------
+
+INTRO
+
+Right off the bat, this code isn't very useful.  The PBKDF2 function makes
+4096 SHA-1 passes for each passphrase, which takes quite a bit of time.  On
+my Pentium II development system, I'm getting ~4 passphrases/second.
+The SHA-1 code I'm using has been optimized to the best of my ability (which
+isn't saying that much), but I doubt if it would be possible to optimize it
+such that the tool experiences an exponential performance increase.
+
+However, if you are auditing WPA-PSK networks, you can use this tool to
+identify weak passphrases that were used to generate the PMK.  Supply a
+libpcap capture file that includes the 4-way handshake, a dictionary file of
+passphrases to guess with, and the SSID for the network:
+
+$ ./cowpatty -r eap-test.dump -f dict -s somethingclever
+cowpatty 2.5 - WPA-PSK dictionary attack. <jwright@hasborg.com>
+
+Collected all necessary data to mount crack against passphrase.
+Starting dictionary attack.  Please be patient.
+
+The PSK is "family movie night".
+
+4087 passphrases tested in 59.05 seconds:  69.22 passphrases/second
+$
+
+The files "dict" and "eap-test.dump" are included with this distribution
+for testing purposes.  If your SSID has spaces or other non-ASCII characters,
+enclose it in quotes so the shell doesn't interpret it as multiple parameters.
+
+
+This tool can also accept dictionary words from STDIN, allowing us to utilize
+a tool such as John the Ripper to create lots of word permutations from a
+dictionary file:
+
+$ john -wordfile:dictfile -rules -session:johnrestore.dat -stdout:63 | \
+   cowpatty -r eap-test.dump -f - -s somethingclever
+
+In the default configuration of John the Ripper, common permutations of
+dictionary words will be sent as potential passwords to coWPAtty.  For
+example, here is a list of the words John will create from the input word
+"password":
+
+jwright@mercury:~$ echo password >word
+jwright@mercury:~$ john -session:/tmp/delme -wordfile:word -rules -stdout
+password
+Password
+passwords
+password1
+Password1
+drowssap
+1password
+PASSWORD
+password2
+password!
+password3
+password7
+password9
+password5
+password4
+password8
+password6
+password0
+password.
+password?
+psswrd
+drowssaP
+Drowssap
+passworD
+2password
+4password
+Password2
+Password!
+Password3
+Password9
+Password5
+Password7
+Password4
+Password6
+Password8
+Password.
+Password?
+Password0
+3password
+7password
+9password
+5password
+6password
+8password
+Passwords
+passworded
+passwording
+Passworded
+Passwording
+words: 49  time: 0:00:00:00 100%  w/s: 49.00  current: Passwording
+jwright@mercury:~$
+
+John the Ripper is available at http://www.openwall.com/john/.
+
+
+Note that it is also possible to mount a precomputed attack against the PSK.
+The PBKDF2 algorithm used to generate the PMK takes two non-fixed inputs: the
+passphrase and the network SSID.  For a given SSID, we can precompute all the
+PMK's from a dictionary file with the "genpmk" tool:
+
+$ ./genpmk
+genpmk 1.0 - WPA-PSK precomputation attack. <jwright@hasborg.com>
+genpmk: Must specify a dictionary file with -f
+Usage: genpmk [options]
+
+	-f 	Dictionary file
+	-d 	Output hash file
+	-s 	Network SSID
+	-h 	Print this help information and exit
+	-v 	Print verbose information (more -v for more verbosity)
+	-V 	Print program version and exit
+
+After precomputing the hash file, run cowpatty with the -d argument.
+$ ./genpmk -f dict -d hashfile -s somethingclever
+genpmk 1.0 - WPA-PSK dictionary attack. <jwright@hasborg.com>
+File hashfile does not exist, creating.
+<snip>
+
+4090 passphrases tested in 322.79 seconds:  12.67 passphrases/second
+$
+
+Once the hashfile is created with the PMK's, we can use it with cowpatty:
+
+$ ./cowpatty -r eap-test.dump -d hashfile -s somethingclever
+cowpatty 2.5 - WPA-PSK dictionary attack. <jwright@hasborg.com>
+
+Collected all necessary data to mount crack against passphrase.
+Starting dictionary attack.  Please be patient.
+
+The PSK is family movie night".
+
+4087 passphrases tested in 0.21 seconds:  19096.17 passphrases/second
+$
+
+
+The attack isn't accelerated dramatically with the precomputation attack since
+we still have to spend the time precomputing the PMK with the genpmk utility,
+but we only have to do this once for each SSID.  This allows us to precompute
+hash files with common SSID's such as "linksys" and "tsunami".  If you spend
+the time precomputing big dictionaries, please drop me a copy.
+
+
+FPGA ACCELERATION
+
+If you have a Pico E-12 card and want to use it to accelerate cowpatty simply
+write the cowpatty.bit image in this directory to the FlashROM of your card
+and make sure you build the project with the -DFPGA option in the CFLAGS
+setting in the Makefile (should be enabled by default).
+
+You will need to make sure that your card is recognized by linux. With Linux
+2.4 you will need to compile pcmcia-cs with the memory_cs driver. This
+usually requires recompiling your kernel and specifically recompiling
+pcmcia-cs. Make sure that the memory_cs.o file is created and installed into
+your pcmcia kernel modules directory (should be /lib/modules/2.4.x/pcmcia).
+
+Next, make sure that the correct Pico E-12 bindings are enabled in your
+/etc/pcmcia/config file. By adding the following 3 lines to the bottom of
+your file it should associate your Pico E-12 card with the memory_cs driver:
+
+card "Pico E-12"
+  manfid 0x0341, 0xff0c
+  bind "memory_cs"
+
+When you insert the card (assuming pcmcia-cs's cardmgr is running) you should
+see a /dev/mem[0-9][ac] device show up. This devices are mapped directly to the
+card's io memory range. Once you have the card properly mapped you should be
+able to run cowpatty with FPGA acceleration by simply specifying the -F
+option with the id of the card you want to use. If you're only using one card
+you could test out cowpatty by running:
+
+# ./cowpatty -r eap-test.dump -f dict -s somethingclever -F 0
+
+And if you happen to have multiple cards simply specify their id
+(corresponding to their /dev/mem[id][ac] device) when running cowpatty:
+
+# ./cowpatty -r eap-test.dump -f dict -s somethingclever -F 1
+# ./cowpatty -r eap-test.dump -f dict -s somethingclever -F 2
+
+These options also work exactly the same with genpmk when generating hashfiles.
+If you have any problems getting cowpatty to work, please contact Pico
+Computing for support.
+
+
+
+REFERENCE
+
+See Robert Moskowitz's paper "Weakness in Passphrase Choice in WPA Interface"
+for more information on WPA-PSK attacks at 
+http://wifinetnews.com/archives/002452.html.
+
+
+THANKS
+
+My sincere thanks to dragorn for merging in the assembly SHA1 code, and to
+Randy Chou for advice on optimizing the pbkdf2 function.  Also thanks to
+renderman for the inspiration to add the precomputation code.
+
+
+QUESTIONS, COMMENTS, CONCERNS
+
+Please contact jwright@hasborg.com with any questions, comments or concerns.
+My PGP key is located at http://802.11ninja.net/pgpkey.html.
+

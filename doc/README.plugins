@@ -1,0 +1,119 @@
+Plugin types:
+	- Scheduled
+		These are normal scheduled plugins that are run according to
+		your profile set.  The scheduler determines when these should be run.
+		Examples for this is anything that you want to run on a given
+		access point (like dhcp, or nmap, etc)
+
+	- Hooks
+		Hooks are setup so that you can run certain programs during
+		certain times during the Access Point discovery process.  This
+		is so that external programs can always run when you want them
+		to.  These are run immediately after some event (see
+		README.developers for all of the event types), and are
+		generally more timing sensitive.  
+
+		Here are some examples:
+
+		- Setting up a motorized antenna to scan while you're looking for
+		  acesss points, and then setting that antenna back to where you
+		  discovered the Access Point before you run plugins on it.
+
+		- Triggering GPS coordinate grabbing
+
+		- Making noises or sounds during discovery or when certain event
+		  levels have been reached
+
+
+	Differences between "scheduled" and "hooks" plugins:
+		The biggest difference between these two types of plugins is
+		that plugins are scheduled, and run according to how the
+		scheduler sees best fit (according to profile, scheduling
+		algorithm, etc).  Hooks are run immediately after a given event
+		and can be run synchronously or asynchronously.  This is
+		important for things like GPS and announcements since you want
+		them to happen immediately, unlike plugins which could be run
+		at any later time (or not at all depending).
+
+		Note that asynchronous cannot change the runlevel because the 
+		return code from the plugin is not saved.
+
+Plugin Development:
+	Check out the example plugins in plugins/example-* -- these are just
+	stubs for other functionality.
+
+	Some data is passed into the the plugins via the command line, and the
+	rest is passed in through the environment.  Here are the parameters
+	passed via CLI:
+
+		-b <bssid>
+		-e <encryption>
+		-i <interface>
+		-n <nick>
+		-r <run>
+		-s <ssid>
+		-v <version
+	
+	Here are the current things that are passed in through the environment:
+
+		WICRAWL_PCAPFILE -- This is the pcap file that was created
+		during the initial discovery.
+
+		WICRAWL_EVENTLVL -- The current event level that the plugin is
+		being called from.  This can be used to change the behavior of
+		the plugin based on when it is called.
+
+		Anything else in the plugin_env for the given plugin is added
+		to the environment.  This allows any plugin to be configured
+		from the plugin.conf file.
+	
+
+	There are two ways to get information back to the user.
+
+	  - Human readable report data -- A plugin can send any report data
+	    that it wants to STDOUT, and wicrawl will collect that info for
+	    display in the GUI.  Currently this is raw text only.
+
+	  - Return codes return programmatic data that is used to change the
+	    flow in the plugin-engine.  For example if there is an event
+	    level change (e.g. the dhcp plugin is able to get an IP, and
+	    wants to increase the event level to "have-ip"), the plugin
+	    should send the appropriate return code for the change (return
+	    code of 9 in our example)
+
+	A plugin should contain at least three things:
+		- plugin.conf 
+		- The actual binary/script, etc (and whatever else
+		  you'd need to run it, e.g. config files, etc), 
+		- README
+	
+
+Interface Binding:
+	Your plugin should explicitly bind to the interface you're testing from
+	instead of using default routing.  The reason for this is that multiple
+	cards can be at various states, and this can screw up the results.  
+
+	A good example of this is the check_internet plugin.  If more than one
+	Plugin is running at this level, it's possible you will route through
+	the other interface to get to the internet and give back erroneous
+	results to the plugin-engine, and all future plugins for this AP will
+	be out of sync.
+
+	This will also be even more important in the future when we get to
+	future research states of AP multi-plexing on a single interface.
+
+Output:
+	The output file for the plugins is XML, the basic structure of the file
+	is supposed to be:
+
+<pluginoutput>
+  <accesspoint bssid="" ssid="">
+    <plugin run="" name="">
+      <output> base64 encoded data </output>
+    </plugin
+    <plugin run="" name="">
+      <output> base64 encoded data </output>
+    </plugin
+  </accesspoint>
+<pluginoutput>
+

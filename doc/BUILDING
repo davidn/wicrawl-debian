@@ -1,0 +1,26 @@
+BUILDING PREREQUISITES:
+
+Wicrawl has the following prerequisites:
+
+ - libpcap 0.8 libraries and development package (http://www.tcpdump.org/)
+ - XML::Smart (perl)
+ - Gtk2 (perl, C)
+ - Glib (perl, C)
+
+Plugins are automatically built when making wicrawl, and some of them can have
+extra dependencies.  If you don't want to build each plugin, just comment out
+the given plugin from plugins/Makefile.
+
+The plugins have the following dependencies:
+ - coWPAtty
+	OpenSSL libraries and development package (http://openssl.org/)
+
+
+
+DISTRIBUTION SPECIFIC:
+
+For Debian/Ubuntu (note that you must have 'universe' enabled for Ubuntu in
+/etc/apt/sources.list)
+
+	apt-get install libpcap0.8-dev libxml-smart-perl libgtk2-perl libssl-dev 
+

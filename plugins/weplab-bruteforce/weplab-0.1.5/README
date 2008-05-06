@@ -1,0 +1,199 @@
+	weplab - Wireless WEP security analyzer
+
+
+
+  Copyright (C) 2004 Topo[LB] - Jose Ignacio Sanchez
+
+  weplab is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+Comments are welcome.
+
+	- Topo[LB] - Jose Ignacio Sanchez <sanchez@osha.eu.int>
+
+GENERAL INFORMATION.
+
+Weplab is a tool to review the security of WEP encryption in wireless networks from an educational point of view. Several attacks are available (including the well known FMS statistical attack) so it can be measured the efectiveness and minimun requirements of each one.
+
+Weplab is tested on GNU/Linux with latest version of libpcap. Please take a look at the scripts in the CVS to place your prism2 in monitor mode, so weplab is able to capture packets.
+
+This alpha version was released with the aim of getting some feedback to adjust the parameters to the most optimun ones, for the FMS attack.
+
+INSTALLATION.
+Libpcap 0.8 or higher is needed for weplab. The configure script should be able to detect your proccessor type to optimize the code specifically for it.
+At least 128 MB of free RAM memmory is required to run FMS statistical attack in weplab, 64 MB of free ram for capturing packets, and nothing special for the other features.
+To install it, just issue the usual commands:
+./configure
+make
+
+At the moment, weplab is only tested under GNU/Linux.
+
+WHAT DOES WEPLAB DO.
+Weplab helps you to understand and analyze the security weaknesses present on WEP encryption for wireless networks. Different attacks using several vulnerabilities can be launched. The user can play with lots of cracking parameters so it is easier to understand what the algoritm is doing and how easy or difficult is to crack the WEP key.
+
+CAPTURING PACKETS.
+First you will need to capture 802.11b encrypted packets to crack the wep key.  The way weplab cracks the key is using passive attacks to an already captured packet set.
+To capture encrypted packets in a wireless network, your wireless card must be put in monitor mode. The way monitor mode is set is highly dependant on which card do you own, and which drivers are you using.
+Explaining how to set monitor mode in your card is beyond the scope of this document, and sometimes involves patching the kernel or "hacking" the drivers.
+As an example, the following steps should be done in order to set monitor mode on a prism2 based card using wlan-ng drivers.
+
+1) Initialization of the card.
+		* prism2 and wlan-ng
+		wlanctl-ng wlan0 lnxreq_ifstate ifstate=enable
+		wlanctl-ng wlan0 lnxreq_autojoin ssid=any authtype=opensystem 
+		* orinoco : nothing special
+
+2) Enable the interface (wlan0 in the example, just change to eth0 if using orinoco)
+		ifconfig wlan0 up
+
+2) Setting monitor mode on desired channel (6 in the example).
+		* prism2 and wlan-ng
+		wlanctl-ng wlan0 lnxreq_wlansniff channel=06 keepwepflags=false prismheader=false enable=true
+	(I dont know why, but sometimes this step must be taken twice :) )
+		* orinoco and iwpriv
+		iwpriv eth0 monitor 2 6
+
+There are a few things that must be done regardless of the card and drivers used.
+1) The wireless card placed in monitor mode should accept encrypted packets and mark them as encrypted. In the example above, that's the purpose of the option keepwepflags=false in third step.
+2) The interface must be enabled (up)
+3) If your card is appending prism header or fcs "tail" to the packets, weplab needs to be told about it (with --fcs or --prismheader). Determining if this is necessary for your hardware will be explained later.
+
+Now, to capture encrypted packets you can either use weplab, tcpdump, or a similar sniffer that logs packets in pcap format.
+To do it with weplab, just use -c. Interface must be specified with -i
+./weplab --debug 1 -c -i wlan0 ./packets.log
+
+There is no need to log the entire packet, just the 802.11 header and the IV, but to verify possible canditate keys the whole packet encrypted payload must be present. That's why you must specify two files in weplab when using FMS attack. One file must have just 10 packets with the whole payload, and the other file contains weak packets that don't need to have payload logged.
+So, in order to save disk space it is a good idea to log a few packets for key verification on one file, and then just log the first bytes of all other possible packets, to be used as possible weak packet for FMS attack.
+You can specify maximun captured bytes per packet with --caplen <bytes>
+./weplab -c -i wlan0 --debug 1 ./verification_packets.log
+./weplab -c -i wlan0 --debug 1 --caplen 100 ./weak_packets.log
+
+Alternately, if your disk space is not so critical and you don't mind wasting a few extra seconds on loading the file later, these two steps can be joined into one.
+./weplab -c -i wlan0 --debug 1 --caplen 150 ./packets.log
+Then this file can be used both for verification and weak packets.
+
+ANALYZING PCAP FILE
+Before trying to crack the key using the already captured packets, it is a good idea to verify the file just to ensure that the packets were logged fine, and there are enough to perform the desired attack. 
+./weplab --debug 1 -a ./packets.log
+You can try with --prismheader or --fcs, or both. 
+
+./weplab --debug 1 -a --fcs ./packets.log
+./weplab --debug 1 -a --prismheader --fcs ./packets.log
+
+As explained above, prismheader is an special header that some cards and drivers add to all captured packets, and fcs is an special tail added to the captured packets by some drivers.
+You can determine if your card/drivers needs --fcs or --prismheaders by using the FMS attack together with --debugkey and a set of encrypted packets captured by your card where the wep key is known. This is explained later in the FMS attack section.
+
+WEP KEY CRACKING.
+At the moment weplab supports 2 main cracking methods: bruteforce and FMS statistical attack.
+Before selecting the cracking method, the keysize should be specified. By default the keysize is 64. To crack a 128-bit key, you must specify --key 128
+
+BRUTEFORCE CRACKING.
+Bruteforce cracking means testing all possible keys to find the right one. That means that each key byte can take values from 0 to 255. So a quick calculus will reveal that for a 64 bits key the total combinations are 2^40, so at 100.000 c/s cracking the key will take you 4100061318 seconds maximun. 127 days working fulltime.
+With a 128-bit key the total combinations possible are 2^104, so at 100.000 c/s the total maximun amount of time will be 6520836420927105974 YEARS!!
+I guess you will never try to launch a bruteforce attack to a 128-bit key. Anyway, weplab gives you the possibility to do it ;)
+
+You will need at least 10 full wep encrypted data captured packets in order to launch a bruteforce attack avoiding false positives.
+
+DICTIONNARY CRACKING
+Guess what ? Users often use simple words as their WEP key. The dictionnary cracking mode gives you the ability to check if the WEP key isn't a so-simple-to-guess word. Using this mode in addition to John-the-Ripper could produce some usefull results.
+Weplab reads the dictionnary words from STDIN, so if you want statistics, you want be able to press <SPACE>. However, you'll have statistics printed on STDOUT every 10 seconds.
+
+Dictionary cracking can use two different modes :
+- By default : use the classical algorithm (MD5 for 128 bits keys or one of 4 keys for 40 bits keys). This mode is widely used on Access Points to generate keys from a passphrase.
+- Word to key : use the "--attack 2" option if you want weplab to use plaintext keys with NULL bytes appended (if needed) at the end of each word to fit the WEP key size.
+This second mode is used on my system when I configure the WEP key using "iwconfig eth0 s:silly".
+
+
+FMS STATISTICAL ATTACK.
+Wireless networks WEP encryption is based on RC4 algorithm. RC4 has some weaknesses as Fluhrer, Mantin and Shamir described in 2001 with the paper "Weaknesses in the Key Scheduling Algorithm of RC4". The specific implementation of the RC4 algorithm in WEP makes possible its practical use. The initials of the authors gave it the name of FMS statistical cryptoanalysis.
+In order to make this attack possible for breaking the encryption of wireless networks, lots of specific data wep encrypted packets, called weak packets, must be gathered. Soon after the paper was published, two tools appeared that implemented the FMS attack, but the set of weak packets that these tools use is just asmall subset of the total possible weak packets. As a
+result, the attack was not as practical to launch as it should be.
+
+In February 2002, h1kari released the paper "Practical Exploitation of RC4 Weaknesses in WEP Environments". This describes the problem with the set of weak packets used by existing tools and suggest several optimization in the attack like attacking other bytes besides the first one. H1kari created a tool called dwepcrack that implements a part of these optimizations, and runs under *BSD. Weplab uses FMS attack supporting the whole set of weak packets for attacking both the first and the second byte of the encrypted payload. Also some bruteforce and smart probabilistic based decisions are
+implemented within the FMS attack to make it more powerful, especially when you dont have enough packets to launch a straight-forward attack. 
+But apart from that, the main purpose of weplab is to be an educational tool to help users understand the existing weaknesses in WEP and how can the be used to break the encryption key. Several command line parameters are implemented with this purpose.
+
+Also, if you plan to test weplab cracking capacity with your own wireless lan, you can use --debugkey. By using this option you tell weplab what your WEP key is (or at least a part of it), so weplab will skip all other branches when searching candidate key bytes in FMS attack.
+
+NEW STATISTICAL ATTACKS.
+New statistical attacks published on Netstumbler forum by Korek. These new attacks make possible to crack the key with even less than 500k.
+Many thanks to Korek for this information. All the credit goes to you.
+
+USAGE.
+Weplab has many options that could be a bit confusing to new users. The purpose of all these options is not only allow the user to "tune" the cracking process, but also help the user to analyze and understand the cracking process. After all weplab is an educational tool ;)
+Following there is a brief summary of all the options.
+
+--debug <debug_level> : gives more information of the current cracking process
+-v : nothing at the moment
+-y : dictionary based attack (read words from stdin)
+-b : bruteforce cracking. Tests all possible keys.
+-r[<file>]: FMS statistical attack. The main purpose of this tool. <file> is the pcap format file where the packets that will be used for the FMS attack are stored.
+-c : Capture packets from interface. Does not crack anything, it just captures unique IV packets and logs them in a file
+-i <interface>: Uses <interface> por capturing packets with -c. Mandatory option if -c is used.
+-a : Analyzes specific file and gathers some statistics about the packets that are stored.
+-k <size>: Uses this key size in bits. Default 64. Possible values: 64, 128
+--perc <number>: Guesses the key with at least specified probability of succeed. <number> is an integer between 1-100. Default 20%
+--caplen <size>: captures maximun <size> per packets. Only applies when using -c (capture mode).
+--fcs: Sometimes your wireless card appends a "tail" to all captured packets in monitor mode. This "tail" is called fcs. By default weplab does not expect to see this tail. If you know it is pressent in captures packets, you have to specify it to weplab with --fcs.
+--keyid <id>: when cracking 64-bit keys. You must specify which of the four possible keys do you want to crack. Default: 0
+--prismheader: Sometimes prism2 wireless cards append a special "header" to all captured packets in monitor mode. This "header" is called prismheader. By default weplab does not expect to see this header. If you know it is pressent in captures packets, you have to specify it to weplab with --prismheader.
+--ascii : If you are using bruteforce (-b) to crack the key, you can reduce the search to ascii bytes. By specifing --ascii each key byte can be in the range 0 - 0x3F.
+--allowdups: deprecated. Not used in this version.
+--bssid <MAC>: does only process those packets that belongs to specified BSSID. MAC must be in the form of xx:xx:xx:xx:xx\n
+--attacks <number1,number2,...>: allows you to select which attacks will be used for heuristic mode.
+--debugkey <key>: VERY IMPORTANT OPTION if you want to test the tool. If you already know the key or at least part of it, you can specify this part here so weplab will not try to guess these already known bytes. Key must be in the form AA:BB:CC
+-h : shows help
+-V : shows current version of weplab.
+
+EXAMPLES OF USE.
+
+Example 1. Cracking using FMS attack
+You want to test the tool so you collect 1.5M packets from your own wireless LAN. You just want to know if weplab would be able to crack it.
+You can use first --debugkey. If you are using a 128-bit key the right sintax would be
+./weplab -r./packets.log --debugkey 01:02:03:04:05:06:07:08:09:10:11:12:13 --debug 1 --key 128 ./packets.log
+
+You should see the statistics and guesses for each byte of the key so you can see the viability of the attack. At the end you should see "key succesfully cracked". If you do not see such message, perhaps your captured packets have the FCS tail so it will be neccesary to issue --fcs
+./weplab -r./packets.log --debugkey 01:02:03:04:05:06:07:08:09:10:11:12:13 --fcs --debug 1 --key 128 ./packets.log
+
+Now can try with just a part of the key in debugkey. If the FMS is possible with these packets, weplab should be able to crack the key using just these bytes.
+./weplab -r./packets.log --debugkey 01:02:03:04:05:06 --fcs --debug 1 --key 128 ./packets.log
+
+If it works you can try reducing the debugkey more. At the end you can try with no debugkey at all, as if it were a real attack.
+
+You can push ENTER key in any moment to get statistics of the work done.
+
+Example 2. Cracking using bruteforce
+To crack a 64-bit key using normal bruteforce just issue the following command.
+./weplab --debug 1 --key 64 ./packets.log
+
+If you suspect that the key may be in plain ascii, do this:
+./weplab --debug 1 --key 64 --ascii ./packets.log
+
+You can push ENTER key at any moment to get statistics of the work done.
+
+
+Example 3. Capturing packets.
+In order to capture packets you have to put your wireless card in monitor mode in the right channel. 
+Be carefull to configure monitor mode to ignore WEP bit.
+Once you have your card in monitor mode, you can capture packets using tcpdump or weplab -c -i <interface>
+./weplab -c -i wlan0 --debug 1 --caplen 150 ./packets.log
+
+You can push ENTER key at any moment to get statistics of the work done.
+
+Example 4. Analyze an existing pcap file.
+Weplab can also analyze a pcap file to the some statistics. Use -a for this purpose. --prismheader --fcs can also be used.
+./weplab -a --debug 1 ./pcap.log
+
+Example 5. Cracking a 64 WEP key using a dictionnary file with John the Ripper
+john -w:/path/to/my/big/dictionnaryfile -rules -stdout | weplab -y -d 1 --key 64 capt.dump

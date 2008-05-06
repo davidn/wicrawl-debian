@@ -1,0 +1,34 @@
+README: Aircrack plugin for wicrawl
+
+This plugin automates a typical aircrack run.  It tries to do the following:
+	- Start monitor mode on the interface
+	- Start airodump-ng 
+	- Look for clients participating on the given network
+	- Send deauth to the broadcast
+	- Send a deauth to each client we can see
+	- If after some time we still don't have a client, re-deauth
+	- Runs aireplay-ng --fakeauth attacks with the client MAC
+		- If fakeauth attacks fail, then reselect the best client
+		  and restart fakeauth and arpinject processes
+	- Runs aireplay-ng --arpinject attacks to inject traffic and generate IVs
+		- If we still aren't getting arp traffic after a while, re-run de-auth
+	- Runs aircrack-ng once we get enough traffic.
+
+The plugin should output the current status for how many arp injections we've
+done, how many IVs we have so far.  How long we estimate it to take (based on
+500,000 IVs for normal, or 20,000 with ptw), and how cracking is going.
+
+There is some configuration in the plugin.conf to specify whether we want to
+use the PTW attacks, what fudge factor to use, and whether to send a deauth to
+every client.  aircrack_deauth_only_once is whether we should keep trying to
+deauth everyonce in a while if we're not seeing any arp, or clients aren't
+showing as associated.  aircrack_deauth_never means it will never send a deauth.
+	"aircrack_use_ptw_attack" => "1",
+	"aircrack_fudge_factor" => "6"
+	"aircrack_deauth_all_clients" => "1"
+	"aircrack_deauth_only_once" => "1"
+	"aircrack_deauth_never" => "0"
+
+The next step for this plugin would be to to add chopchop/fragmentation
+attacks automatically, but this is basically what wesside does, so use that
+plugin if you want to use this method.

@@ -1,0 +1,8 @@
+To install, use these commands
+
+	make
+	make install
+
+You will need to have libpcap and pthreads to compile
+For the program to run right, you need to have pump installed
+This will change in later versions :-)

@@ -1,0 +1,7 @@
+WEPLAB. Topo[LB] - Jose Ignacio Sanchez <sanchez@osha.eu.int>
+
+PATCHES FOR SPECIFIC FUNCTIONS
+
+	- BSSID basic detection --> florian schilhabel[rootshell] <florian.schilhabel@gmx.net>
+	- Dictionary attack.	<uzy>
+	- PPC endian issues --> Erik Winkler

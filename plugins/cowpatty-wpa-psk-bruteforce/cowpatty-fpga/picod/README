@@ -1,0 +1,39 @@
+Picod
+
+picod provides network sharing of the pico cards for situations where you want
+a single program to have access to cards on multiple servers. To do this, we've
+created a basic API to talk to the Pico cards through the /dev/mem* devices
+and have set it up so you can either build your application to talk directly
+to the cards or have it abstracted to communicate to multiple servers over the
+network instead.
+
+
+Building an application to run locally
+
+To run your application just locally on one machine, simply build it with the
+libpicod.c API. It will talk directly to the /dev/mem* devices on the local
+machine and provides a faster method of access than going over the network.
+
+
+Building an application to run remotely
+
+To have your application talk to multiple servers running pico cards you will
+first need to build picod. You can do this by just running make in this
+directory. Once it is built you will need to run the picod binary on all of the
+servers which have Pico cards you want to access, you will also want to make
+sure that port 1234 is accessible on them.
+
+Next, your application will have to be built with libpicoc.c instead of
+libpicod.c. To tell it what servers to connect to you can either modify the
+application so when it calls picoinit() it supplies a list of IP addresses to
+connect to or if it's provided NULL, it will default to reading /etc/picod.conf.
+
+/etc/picod.conf should contain a list of IP addresses (one on each line) of the
+servers you want your picoc applications to connect to.
+
+
+Testing picod
+
+To test to make sure picod services are running properly you can use the picoc
+application. We have also provided a simple program which lists the files on
+the flash rom called listflash.

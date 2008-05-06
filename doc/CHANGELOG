@@ -1,0 +1,36 @@
+Trunk
+- plugin-engine
+	- fixed wicrawl.conf parsing (for madwifihack)
+	- fixed manual mode channels
+- apcore
+	- Added -c flag for channel restriction.
+	- Added -n flag to leave the monitor state alone.  This works around a bug
+	  aaronp reports with the madwifi drivers, where setting monitor mode on a
+	  monitor mode VAP causes the driver to stop passing frames to the VAP.
+	- Added version and filter IPC2 messages.
+
+v0.4
+- Plugin-engine
+        - Added -I flag to allow filters to be passed in a newline delimted file
+        - Added hack for mad-wifi so it doesn't try to schedule the monitor
+          interface between plugin runs (because channel hoping on the monitor
+          mode interface will prevent the station mode interface from working
+          properly).
+        - Added -K flag to allow for external discovery
+	- Can read the "kill discovery between plugin runs" from the profile
+	  (in addition to the -k flag)
+	- plugine-engine now runs plugins/hooks asynchronously when configured in
+	  the plugin config (this means no output is gathered however).
+	- Added test_ipc.pl script to test plugin-engine and UI
+	- Added to_ipc($ipcfile) method to AccessPoint.pm so that anything using this module
+	  can serialize the data directly to the IPC mechanism.
+	- Added dynamic logging for plugins (so we can see output in the GUI mid-run)
+- Plugins
+	- Text to speech
+		- Added locking file
+		- Changed to be asynchronous (was slowing down discovery)
+	- APidentD
+		- Updaed OUI database
+		- Added script to update the OUI db from the IEEE db
+	- Ettercap
+		- Added new ettercap plugin

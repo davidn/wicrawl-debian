@@ -1,0 +1,85 @@
+#######################################################################
+General info -- needs comments, etc.
+#######################################################################
+
+Event levels:
+	new-ap
+	associated
+	have-ip
+	have-internet
+
+Hooks:
+	discovery       -- Runs after every AP discovery
+	associated      -- Runs after every association
+	have-ip         -- Runs after every New IP
+	have-internet   -- Runs after every interent
+
+	pre-discovery   -- Runs before every discover run
+	post-discovery  -- Runs after every discovery run
+
+	pre-ap          -- Runs before we run plugins for an AP
+	post-ap         -- Runs after we run plugins for an AP
+
+Return codes for plugins:
+	0 - successful
+	1 - unknown failure
+
+	8 - event associated
+	9 - event have-ip
+	10 - event have-internet
+
+profile card scheduling options:
+	get first
+	get best signal
+	get best used
+	get all
+
+
+#######################################################################
+General spec for wicrawl discovery engine IPC mechanism
+Draft 0.1
+#######################################################################
+
+Note: This can be used by hooks or plugins to update meta-data in the XML 
+structure, however, they need to be sure to flock() the IPC fifo first.
+
+Sending data:
+	GENERAL:
+
+	This will be of two types New data and update data.  The Generic form
+	of a message will be:
+
+	type|fieldname_1:<base64 encoded data>|fieldname_n:<base64 encoded data|\n
+
+	EXAMPLES:
+
+	new|ssid:d2ktZm9vCg==|bssid:MDA6MDQ6MjM6MDg6NjQ6RkMK|channel:MTEK|encryption:V0VQCg==|
+
+	update|bssid:MDA6MDQ6MjM6MDg6NjQ6RkMK|traffic:MTYwMDAK|signal:MjAK|
+
+
+	FIELD NAMES AND DATA:
+
+	Field names are not case-sensitive.  Field data before encoding is
+	ASCII representation.  (except channel and bssid, they are binary)
+
+		- bssid                          	required all
+		- ssid                           	required new
+		- channel                               required new
+		- encryption                            required new
+		- traffic (in bytes as total
+		  recieved since last traffic msg)
+		- timestamp (epoch seconds)
+		- beacon/probe frame count (in frames per second)
+		- 
+		- signal (in dBm)
+		- ip (can be specified 
+		  multiple times in new or update)
+		- type (infrustructure, ad-hoc, etc)
+		- carrier (802.11.?)
+
+Receiving data:
+
+	Commands only are received.  The only command so far is:
+
+	shutdown\n

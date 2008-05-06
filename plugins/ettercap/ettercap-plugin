@@ -1,0 +1,77 @@
+#!/bin/bash
+#
+# This is a plugin for ettercap.  See the README for details on the plugin, and
+# see ettercap.sf.net for details on ettercap
+# 
+# Written by Aaron Peterson <aaron@midnightresearch.com>
+#
+# $Id: ettercap-plugin,v 1.1 2007-07-21 06:10:33 sith Exp $
+# 
+
+while getopts "b:e:i:n:r:s:v:" options; do
+  case $options in
+    b ) bssid=$OPTARG;;
+    e ) encryption=$OPTARG;;
+    i ) interface=$OPTARG;;
+    n ) nick=$OPTARG;;
+    r ) run=$OPTARG;;
+    s ) ssid=$OPTARG;;
+    v ) version=$OPTARG;;
+    * ) echo "Not sure what $OPTARG is, ignoring for now";;
+  esac
+done
+
+if [ "$interface" == "" ] ; then
+	echo " [!] Ettercap plugin requires -i interface parameter"
+	exit 1
+fi
+
+echo " [*] Running ettercap plugin"
+
+ettercap=`which ettercap`
+system=""
+if [ "$ettercap" == "" ] ; then
+	echo " [!] ettercap was not found, please install and put in \$PATH"
+	echo "     Exiting now..."
+	exit 1
+fi
+
+
+if [ "$ettercap_run_pcap_only" == "1" ] ; then
+	echo " [*] Plugin is configured to read from the .pcap file only."
+
+	if [ "$WICRAWL_PCAPFILE" == "" ] || [ ! -f "$WICRAWL_PCAPFILE" ] ; then
+		echo " [!] Wicrawl pcap file is missing or undefined [$WICRAWL_PCAPFILE]";
+		exit 1
+	fi
+
+	system="$ettercap -Tq -r $WICRAWL_PCAPFILE -s 'lq' $ettercap_extra_cli_parameters"
+
+else 
+	# This should be the "normal" case (running ettercap directly instead of 
+	# just against the pcap file
+	
+	# Setup the extra attacks if specified
+	if [ "$ettercap_extra_attacks" != "" ] ; then
+		ettercap_extra_cli_parameters="$ettercap_extra_cli_parameters -P $ettercap_extra_attacks"
+	fi
+
+	# Default to running ettercap for five minutes
+	if [ "$ettercap_runtime" == "" ] ; then
+		ettercap_runtime=300
+	fi
+
+	command="\"s($ettercap_runtime)olqq\""
+
+	system="$ettercap -Tq -i $interface -s $command $ettercap_extra_cli_parameters"
+
+fi
+
+echo " [*] Running ettercap [$system]"
+$system 2>&1 | grep -v "Truncated packet detected"
+echo " [*] Ettercap finished running"
+echo " [*] Ettercap plugin done."
+
+exit 0;
+
+# vim:ts=2:sw=2:sts=0

@@ -1,0 +1,108 @@
+wicrawl - a simple and powerful active wireless scanner and crawler
+-------------------------------------------------------------------
+Midnight Research Labs
+http://midnightresearch.com/projects/wicrawl
+-------------------------------------------------------------------
+
+ABOUT:
+wicrawl is a simple AP scanner with a flexible/simple plugin architecture.  The
+plugins allow us to find out useful information about an AP so we don't have to
+manually check each access point. Plugins are easily implemented by scripts, or
+any externally called program. Profiles determine your usage type and dictate
+the plugins you are configured for and also the card scheduling algorithm. The
+plugin engine can handle multiple cards so you can crawl through multiple APs
+at the same time. 
+
+Most scanners are passive, and just check for the existence of APs. Now that
+wi-fi is nearly ubiquitous, this becomes less and less useful. The need to go
+through tons of APs is very tedious, and annoying. Additionally, there are lots
+of other metrics that can be very interesting to know about an access point. 
+
+STATUS && USAGE:
+Run 'wicrawl' directly (should be in path after 'make install').  Profiles can
+be changed permanently through the UI.  Plugins have limited configuration
+available through editing plugins/your_plugin/plugin.conf.
+
+Cards are not brought "up" automatically, you will need to do this before you
+start the GUI, otherwise you won't see it.  You need to be root (or effective
+UID to be '0') to run wicrawl.
+
+In the UI you need to select a card that will do the discovery, and any other
+cards that you want to do scanning with.  If you only have one card, it will
+cycle through discovery and running plugins (since you can't do both at once),
+and this is handled by the scheduling algorithm you select in the profile.   If
+you have more than one card, the default is to keep discovery running at all
+times, and only the remaining cards specified will run plugins.
+
+COMPILATION:
+Install everything listed in doc/BUILDING.
+$ make
+$ make -n install # test install run
+$ sudo make install
+
+make clean does what you think it will.
+
+DEVELOPERS:
+If you want to work on plugins, check out the plugins/example-* directories
+for example template plugins.  Also, see README.plugins, and devel_notes.
+
+KNOWN ISSUES:
+- Card support is not clear.  If you are having problems check out the wiki to
+  see if there is anything listed there.  If not, please send us a message with
+  what card you are running, and how the support for it is. 
+- No documentation (looking for some help here, =)
+
+ABOUT PLUGINS:
+See README.plugins for more info
+
+ABOUT PROFILES:
+Profiles are a way to make wicrawl work in a certain way for different use
+cases, depending on what you want to accomplish.  Profiles contain, the card
+scheduling algorithm, the enabled plugins you want to use, the run-levels you
+want to use, and a couple other smaller things.  
+
+Card scheduling: The options now are 'first', 'active', 'signal', and 'all':
+
+'first' tells the plugin-engine to run plugins as soon as you see access points
+to run them on (this implies that if you only have one card, that you stop
+running discovery, so no new access points will be found during this time).  
+
+'all' means only schedule plugins after you're reasonably sure that you have
+all of them for this area.  There is a timeout value for the time since you've
+last discovered an access point, and this is the measure of how "reasonably
+sure" you want to be.  The timer is reset each time it sees an access point,
+and you go until the timer reaches the timeout.
+
+'active', and 'signal' scheduling types mean that you will schedule the running
+of the plugins on these access points in the order of how active they are (the
+number of packets), or the signal strength of the given access point.
+
+ABOUT COMPLIANCE:
+In the wrong hands, wicrawl could easily violate the government certification
+of your radio.  A simple example is running injection plugins on frequencies
+your radio isn't certified for in your geographic region.  Where possible,
+we rely on the frequency tables provided by your radio's drivers, which
+can usually ask the radio what region it's from and therefore what frequencies
+are legal to transmit on.  However, some driver/hardware combinations can't
+return this data (or even return wrong data!), so please run apcore in 
+verbose mode to see if the frequency table we're getting is correct for your
+region.  If not, please report it so we can fix the problem.
+
+The fact that we try to avoid noncompliance isn't an assumption of liability:
+you and only you are responsible for making sure that your tools -- including
+wicrawl -- are compliant with the regulations in your country and region.
+
+Screwing around with radio spectrum can be a major pain to the people being
+interfered with.  Some of us at MRL are amateur radio operators, and we know
+first hand what a messy interference problem can be like.  Remember: stopping
+interference is the responsibility of the transmitter, and we all need to do
+our part to keep our emissions within the lines.
+
+BUGS & FEATURE REQUESTS:
+Please submit bugs to wicrawl-cvs@midnightresearch.com.  There is also a users
+list at wicrawl-users@midnightresearch.com which you can subscribe to to ask
+questions, or just get updates, etc.
+
+TROUBLESHOOTING
+See the wicrawl Troubleshooting wiki page:
+http://midnightresearch.com/wiki/index.php/WicrawlTroubleShooting
