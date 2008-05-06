@@ -3,7 +3,7 @@ my $basedir;
 
 # Set basedir here so we can set the lib path dynamically.
 BEGIN { 
-	$basedir="@@BASEDIR@@/";
+	$basedir="@datadir@/";
 }
 
 if(@ARGV) {
