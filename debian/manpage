@@ -1,0 +1,43 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH WICRAWL 1 "May  6, 2008"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+wicrawl \- a simple wi-fi (802.11x) Access Point auditor
+.SH SYNOPSIS
+.B wicrawl
+.RI [ -C | -G | -T ]
+.SH DESCRIPTION
+This manual page was written for the Debian distribution because the original program does not have a manual page. It documents briefly the
+.B wicrawl
+wi-fi Access Point auditor.
+.PP
+\fBwicrawl\fP is a program that automatically detects wireless networks (802.11x).  For each network discovered, wicrawl will run plugins to detect what access to the network can be obtained.
+.SH OPTIONS
+.TP
+.B \-C
+Runs a curses interface for wicrawl.
+.TP
+.B \-G
+Runs a gtk interface for wicrawl.  This is the default option.
+.TP
+.B \-T
+Runs a text interface for wicrawl.
+.SH SEE ALSO
+The program is documented by
+.IR /usr/share/doc/wicrawl/README
+.SH AUTHOR
+wicrawl was written by Midnight Research Labs (http://midnightresearch.com/).
+.PP
+This manual page was written by David Newgas <david@newgas.net>,
+for the Debian project (but may be used by others).
