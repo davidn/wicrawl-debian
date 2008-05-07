@@ -2,12 +2,12 @@ Source: wicrawl
 Section: net
 Priority: extra
 Maintainer: David Newgas <david@newgas.net>
-Build-Depends: debhelper (>= 5), autotools-dev
+Build-Depends: debhelper (>= 5), autotools-dev, libssl-dev, libpcap-dev
 Standards-Version: 3.7.2
 
 Package: wicrawl
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends}
 Recommends: wicrawl-plugins
 Description: a simple wi-fi (802.11x) Access Point auditor
  Wicrawl is a simple wi-fi (802.11x) Access Point auditor with a simple and 
@@ -20,6 +20,8 @@ Description: a simple wi-fi (802.11x) Access Point auditor
 
 Package: wicrawl-plugins
 Architecture: any
+Depends:  ${python:Depends}, ${perl:Depends}, dhcp3-client
+Recommends: weblab, aircrack-ng
 Description: Documentation for wicrawl
  Wicrawl is a simple wi-fi (802.11x) Access Point auditor with a simple and 
  flexible plugin architecture. The plugins allow us to find out useful 

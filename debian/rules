@@ -88,13 +88,13 @@ binary-common:
 	dh_installchangelogs 
 	dh_installdocs
 	dh_installmenu
-#	dh_python
-	dh_installman
+	dh_pysupport
+	dh_installman debian/wicrawl.1
 	dh_link
 	dh_strip
 	dh_compress 
 	dh_fixperms
-#	dh_perl
+	dh_perl
 	dh_makeshlibs
 	dh_installdeb
 	dh_shlibdeps

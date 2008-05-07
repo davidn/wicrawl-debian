@@ -1,2 +1,2 @@
 version=3
-http://midnightresearch.com/projects/wicrawl wicrawl-(.*)\.tar\.gz
+http://midnightresearch.com/projects/wicrawl /local/packages/wicrawl/wicrawl-((?!cvs).*)\.tgz
