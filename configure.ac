@@ -13,6 +13,7 @@ AC_PROG_MAKE_SET
 AC_CHECK_LIB([pcap], [pcap_open_live],,AC_MSG_ERROR([libpcap missing]))
 AC_CHECK_LIB([pthread], [pthread_create],,AC_MSG_ERROR([libpthread missing]))
 AC_CHECK_LIB([m], [cos],,AC_MSG_ERROR([libm missing]))
+AC_CHECK_LIB([ssl], [MD5_Init],,AC_MSG_ERROR([libssl missing]))
 
 AC_SUBST(package, wicrawl)
 
