@@ -1,7 +1,10 @@
-install = @install@
+install = @INSTALL@
 
 prefix = @prefix@
+exec_prefix = @exec_prefix@
 datarootdir = @datarootdir@
+bindir = @bindir@
+sbindir = @sbindir@
 datadir = @datadir@
 docdir = @docdir@
 includedir = @includedir@
@@ -18,16 +21,10 @@ edit = sed \
        -e 's|@datadir[@]|$(pkgdatadir)|g' \
        -e 's|@prefix[@]|$(prefix)|g'
 
-all: util/libutil.a discovery/apcore discovery/hashtest $(edit_files) plugins
+all: discovery/apcore discovery/hashtest $(edit_files) plugins
 
 plugins:
 	cd plugins && make all
-
-util/libutil.a: util/.deps
-	cd util && make libutil.a
-
-util/.deps:
-	cd util && make .deps
 
 discovery/apcore: discovery/.deps
 	cd discovery && make apcore
@@ -42,7 +39,6 @@ distclean: clean
 	-rm Makefile configure config.status config.log
 	-rm -r autom4te.cache
 clean:
-	cd util && make clean
 	cd discovery && make clean
 	cd plugins && make clean
 	-rm $(edit_files)
@@ -61,80 +57,26 @@ include/perl/UI/GTKOutput.pm: include/perl/UI/GTKOutput.pm.in
 include/perl/UI/GTKWarbar.pm: include/perl/UI/GTKWarbar.pm.in
 
 install: all
-	$(install) -D ui profiles hooks $(pkgdatadir)
-	rm $(pkgdatadir)/ui/wicrawl*.in
-	$(install) -D doc $(pkgdocdir)
-	$(install) -D utils/libutil.la utils/scripts $(pkglibdir)/utils
-	$(install) -D discovery/hashtest discover/apcore $(pkglibdir)/discovery
-	$(install) -D 
+	for file in `find ui -type f ! -iname *.in`; do \
+		$(install) -D $$file $(pkgdatadir)/$$file ;\
+	done
+	for file in `find include/perl -type f ! -iname *.in`; do \
+		$(install) -D $$file $(pkgdatadir)/$$file ;\
+	done
+	$(install) -d $(pkgdatadir)/profiles
+	$(install) profiles/*.conf $(pkgdatadir)/profiles
+	for file in `find hooks -type f`; do \
+		$(install) -D $$file $(pkgdatadir)/$$file;\
+	done
 
-.PHONY: all distclean clean plugins install util/.deps discovery/.deps
-install-old:
-	# Directories, perl modules, and conf files
-	@$(INSTALL) -d $(INSTALLDIR)/include/perl
-	@$(INSTALL) include/perl/*.pm $(INSTALLDIR)/include/perl/
-	@$(INSTALL) -d $(INSTALLDIR)/include/perl/Text/
-	@$(INSTALL) include/perl/Text/*.pm $(INSTALLDIR)/include/perl/Text/
-	@$(INSTALL) -d $(INSTALLDIR)/include/perl/UI/
-	@$(INSTALL) include/perl/UI/*.pm $(INSTALLDIR)/include/perl/UI/
-	@$(INSTALL) -D profiles/*.conf $(INSTALLDIR)/profiles/
-	@$(INSTALL) -D util/dhcp/work.linux-2.2/client/dhclient $(INSTALLDIR)/util/dhcp/dhclient
-	# Docs
-	@for file in `ls doc/ | grep -v CVS` ; do \
-		install -D -m 644 doc/$$file $(DOCDIR)/$$file; \
-	done
-	# Plugins and plugin-engine
-	@for dir in `ls plugins/ | grep -v CVS | grep -v plugin-engine` ; do \
-		install -d $(INSTALLDIR)/plugins/$$dir; \
-	done
-	@for file in `find plugins/*/* | grep -v CVS` ; do \
-		install -D -m 0755 $$file $(INSTALLDIR)/$$file; \
-	done
-	@cat plugins/plugin-engine | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
-		> $(INSTALLDIR)/plugins/plugin-engine
-	@chmod 755 $(INSTALLDIR)/plugins/plugin-engine
-	# UI and themes
-	@$(INSTALL) -D -m 0644 ui/wicrawl-gtk.conf $(ETCDIR)/wicrawl-gtk.conf
-	@$(INSTALL) -D -m 0644 wicrawl.conf $(ETCDIR)/wicrawl.conf
-	@for file in `find ui/ | grep -v CVS | grep -v wicrawl-gtk` ; do \
-		if [ -f $$file ] ; then \
-			install -D $$file $(INSTALLDIR)/$$file; \
-		fi \
-	done
-	@cat ui/wicrawl-gtk | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
-		> $(INSTALLDIR)/ui/wicrawl-gtk
-	@cat ui/wicrawl-curses | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
-		> $(INSTALLDIR)/ui/wicrawl-curses
-	@cat ui/wicrawl | sed -e s_@@BASEDIR@@_$(INSTALLDIR)_ \
-		> $(BINDIR)/wicrawl
-	@chmod 755 $(INSTALLDIR)/ui/wicrawl-curses
-	@chmod 755 $(INSTALLDIR)/ui/wicrawl-gtk
-	@chmod 755 $(BINDIR)/wicrawl
-	@echo
-	@echo "Install Completed."
-	@echo
-	@echo "Run $(BINDIR)/wicrawl to get started"
-	@echo
+	$(install) -d $(pkgdocdir)
+	$(install) doc/* $(pkgdocdir)
 
-uninstall:
-	@echo
-	@echo -e "Sorry, not implemented yet, but here are the places we touched:"
-	@echo
-	@echo "Installed base files in:   [$(INSTALLDIR)]"
-	@echo "Installed binaries in:     [$(BINDIR)]"
-	@echo "Installed config files in: [$(ETCDIR)]"
-	@echo "Installed docs in:         [$(DOCDIR)]"
-	@echo
-
-dist:
-	@mkdir -p $(DISTDIR)
-	@for file in `find . | grep -v CVS | grep -v ^.$$ | grep -v ^\./$(DISTDIR)` ; do \
-		if [ -f $$file ] ; then \
-			install -D $$file $(DISTDIR)/$$file; \
-		fi \
+	$(install) -D discovery/hashtest $(pkglibdir)/discovery/hashtest
+	$(install) -D discovery/apcore $(pkglibdir)/discovery/apcore
+	for plugin in `find plugins ! -iname Makefile ! -iname *.c ! -iname *.o ! -iname *.dump ! -iname *.h ! -iname README ! -iname CONTACTS ! -iname LICENCE ! -iname FAQ ! -iname INSTALL ! -iname COPYING ! -iname TODO ! -iname CHANGELOG ! -iname AUTHORS ! -iname WISHLIST ! -iname VERSION ! -iname HISTORY`; do \
+		install -D $${plugin} $(pkglibdir)/$${plugin} ; \
 	done
-	@tar -czf $(PACKAGEFILE) $(DISTDIR)
-	@echo -e "\nOutput package is in $(PACKAGEFILE)\n"
+	$(install) -D ui/wicrawl $(bindir)/wicrawl
 
-tags:
-	find . -name \*.c -or -name \*.h | xargs etags
+.PHONY: all distclean clean plugins install discovery/.deps
