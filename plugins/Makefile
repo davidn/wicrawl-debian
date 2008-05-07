@@ -1,4 +1,4 @@
-build_files = cowpatty-wpa-psk-bruteforce/cowpatty/cowpatty cowpatty-wpa-psk-bruteforce/cowpatty-fpga/cowpatty cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/picod cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/picoc cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/listflash pickupline/pul/pul
+build_files = cowpatty-wpa-psk-bruteforce/cowpatty/all cowpatty-wpa-psk-bruteforce/cowpatty-fpga/all cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/picod cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/picoc cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/listflash pickupline/pul/pul
 
 all: $(build_files)
 
