@@ -15,7 +15,7 @@ pkglibdir = $(libdir)/@package@
 pkgincludedir = $(includedir)/@package@
 pkgdocdir = $(docdir)/@package@
 
-edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses include/perl/UI/CExecute.pm include/perl/UI/Common.pm include/perl/UI/GTKExecute.pm include/perl/UI/GTKMenubar.pm include/perl/UI/GTKOutput.pm include/perl/UI/GTKWarbar.pm
+edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses plugins/plugin-engine include/perl/UI/CExecute.pm include/perl/UI/Common.pm include/perl/UI/GTKExecute.pm include/perl/UI/GTKMenubar.pm include/perl/UI/GTKOutput.pm include/perl/UI/GTKWarbar.pm
 
 edit = sed \
        -e 's|@datadir[@]|$(pkgdatadir)|g' \
@@ -49,6 +49,7 @@ $(edit_files): Makefile $@
 ui/wicrawl: ui/wicrawl.in
 ui/wicrawl-gtk: ui/wicrawl-gtk.in
 ui/wicrawl-curses: ui/wicrawl-curses.in
+plugin/plugin-eingine: plugin/plugin-engine.in
 include/perl/UI/CExecute.pm: include/perl/UI/CExecute.pm.in
 include/perl/UI/Common.pm: include/perl/UI/Common.pm.in
 include/perl/UI/GTKExecute.pm: include/perl/UI/GTKExecute.pm.in
