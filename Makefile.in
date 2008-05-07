@@ -65,6 +65,7 @@ install: all
 	$(install) -D discovery/hashtest discover/apcore $(pkglibdir)/discovery
 	$(install) -D 
 
+.PHONY: all clean plugins install util/.deps discovery/.deps
 install-old:
 	# Directories, perl modules, and conf files
 	@$(INSTALL) -d $(INSTALLDIR)/include/perl
