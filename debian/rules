@@ -7,7 +7,7 @@
 # This special exception was added by Craig Small in version 0.37 of dh-make.
 #
 # Modified to make a template file for a multi-binary package with separated
-# build-arch and build-indep targets  by Bill Allombert 2001
+# build-arch and build-plugins targets  by Bill Allombert 2001
 
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
@@ -34,59 +34,53 @@ endif
 
 
 #Architecture 
-build: build-arch build-indep
+build: build-arch build-plugins
 
 build-arch: build-arch-stamp
 build-arch-stamp:  config.status
 
 	# Add here commands to compile the arch part of the package.
-	#$(MAKE) 
+	$(MAKE) not-plugins
 	touch $@
 
-build-indep: build-indep-stamp
-build-indep-stamp:  config.status
+build-plugins: build-plugins-stamp
+build-plugins-stamp:  config.status
 
-	# Add here commands to compile the indep part of the package.
-	#$(MAKE) doc
+	# Add here commands to compile the plugins part of the package.
+	$(MAKE) plugins
 	touch $@
 
 clean:
 	dh_testdir
 	dh_testroot
-	rm -f build-arch-stamp build-indep-stamp 
+	rm -f build-arch-stamp build-plugins-stamp 
 
 	# Add here commands to clean up after the build process.
-	$(MAKE) clean
+	$(MAKE) distclean
 	rm -f config.sub config.guess
 
 	dh_clean 
 
-install: install-indep install-arch
-install-indep:
+install: install-plugins install-arch
+install-plugins: install-common
 	dh_testdir
 	dh_testroot
-	dh_clean -k -i 
-	dh_installdirs -i
+	dh_clean -k -pwicrawl-plugins
+	dh_installdirs -pwicrawl-plugins
+	dh_install -pwicrawl-plugins
 
-	# Add here commands to install the indep part of the package into
-	# debian/<package>-doc.
-	#INSTALLDOC#
-
-	dh_install -i
-
-install-arch:
+install-arch: install-common
 	dh_testdir
 	dh_testroot
-	dh_clean -k -s 
-	dh_installdirs -s
+	dh_clean -k -pwicrawl
+	dh_installdirs -pwicrawl
+	dh_install -pwicrawl
 
-	# Add here commands to install the arch part of the package into 
-	# debian/tmp.
-	$(MAKE) prefix=$(CURDIR)/debian/wicrawl/usr install
+install-common:
+	$(MAKE) prefix=$(CURDIR)/debian/tmp/usr install
 
-	dh_install -s
 # Must not depend on anything. This is to be called by
-# binary-arch/binary-indep
+# binary-arch/binary-plugins
 # in another 'make' thread.
 binary-common:
 	dh_testdir
@@ -107,13 +101,14 @@ binary-common:
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb
-# Build architecture independant packages using the common target.
-binary-indep: build-indep install-indep
-	$(MAKE) -f debian/rules DH_OPTIONS=-i binary-common
+
+# Build architecture pluginsendant packages using the common target.
+binary-plugins: build-plugins install-plugins
+	$(MAKE) -f debian/rules DH_OPTIONS=-pwicrawl-plugins binary-common
 
 # Build architecture dependant packages using the common target.
 binary-arch: build-arch install-arch
-	$(MAKE) -f debian/rules DH_OPTIONS=-s binary-common
+	$(MAKE) -f debian/rules DH_OPTIONS=-pwicrawl binary-common
 
-binary: binary-arch binary-indep
-.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch 
+binary: binary-arch binary-plugins
+.PHONY: build clean binary-plugins binary-arch binary install install-plugins install-arch install-common
