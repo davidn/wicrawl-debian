@@ -12,7 +12,7 @@ pkglibdir = $(libdir)/@package@
 pkgincludedir = $(includedir)/@package@
 pkgdocdir = $(docdir)/@package@
 
-edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses perl/UI/CBasic.pm perl/UI/CExecute.pm perl/UI/Common.pm perl/UI/GTKBasic.pm perl/UI/GTKExecute.pm perl/UI/GTKMenubar.pm perl/UI/GTKOutput.pm perl/UI/GTKWarbar.pm perl/UI/Reports.pm
+edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses include/perl/UI/CBasic.pm include/perl/UI/CExecute.pm include/perl/UI/Common.pm include/perl/UI/GTKBasic.pm include/perl/UI/GTKExecute.pm include/perl/UI/GTKMenubar.pm include/perl/UI/GTKOutput.pm include/perl/UI/GTKWarbar.pm include/perl/UI/Reports.pm
 
 edit = sed \
        -e 's|@datadir[@]|$(pkgdatadir)|g' \
@@ -50,15 +50,15 @@ $(edit_files): Makefile $@
 ui/wicrawl: ui/wicrawl.in
 ui/wicrawl-gtk: ui/wicrawl-gtk.in
 ui/wicrawl-curses: ui/wicrawl-curses.in
-perl/UI/CBasic.pm: perl/UI/CBasic.pm.in
-perl/UI/CExecute.pm: perl/UI/CExecute.pm.in
-perl/UI/Common.pm: perl/UI/Common.pm.in
-perl/UI/GTKBasic.pm: perl/UI/GTKBasic.pm.in
-perl/UI/GTKExecute.pm: perl/UI/GTKExecute.pm.in
-perl/UI/GTKMenubar.pm: perl/UI/GTKMenubar.pm.in
-perl/UI/GTKOutput.pm: perl/UI/GTKOutput.pm.in
-perl/UI/GTKWarbar.pm: perl/UI/GTKWarbar.pm.in
-perl/UI/Reports.pm: perl/UI/Reports.pm.in
+include/perl/UI/CBasic.pm: include/perl/UI/CBasic.pm.in
+include/perl/UI/CExecute.pm: include/perl/UI/CExecute.pm.in
+include/perl/UI/Common.pm: include/perl/UI/Common.pm.in
+include/perl/UI/GTKBasic.pm: include/perl/UI/GTKBasic.pm.in
+include/perl/UI/GTKExecute.pm: include/perl/UI/GTKExecute.pm.in
+include/perl/UI/GTKMenubar.pm: include/perl/UI/GTKMenubar.pm.in
+include/perl/UI/GTKOutput.pm: include/perl/UI/GTKOutput.pm.in
+include/perl/UI/GTKWarbar.pm: include/perl/UI/GTKWarbar.pm.in
+include/perl/UI/Reports.pm: include/perl/UI/Reports.pm.in
 
 install: all
 	$(install) -D ui profiles hooks $(pkgdatadir)
