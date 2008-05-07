@@ -45,7 +45,7 @@ uninstall:
 	sudo rm $(BINDIR)/apcore
 
 clean:
-	rm -f apcore $(OBJS) ~* .deps
+	rm -f apcore $(OBJS) ~* .deps hashtest
 
 .PHONY: clean install uninstall
 

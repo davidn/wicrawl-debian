@@ -1,0 +1,2251 @@
+#!/usr/bin/perl -w
+#
+#   wicrawl - A modular and thorough wi-fi scanner
+#   http://midnightresearch.com/projects/wicrawl - for details
+#
+#   Original Code: Aaron Peterson
+#   Contributors:
+#   $Id: plugin-engine,v 1.42 2007-12-14 08:34:15 sith Exp $ 
+#
+#   Copyright (C) 2005-2007 Midnight Research Laboratories
+#
+#   THIS SOFTWARE IS PROVIDED "AS IS". NO WARRANTY IS ASSUMED.
+#   NO LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER RESULTING
+#   FROM THE USE OF THIS SOFTWARE WILL BE ACCEPTED. IT CAN BURN
+#   YOUR HARD DISK, ERASE ALL YOUR DATA AND BREAK DOWN YOUR
+#   MICROWAVE OVEN. YOU ARE ADVISED.
+#
+#   wicrawl is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 2 of the License, or
+#   (at your option) any later version.  For details see doc/LICENSE.
+
+use strict;
+use File::Basename;
+use XML::Smart;
+use POSIX ":sys_wait_h";
+use Getopt::Std;
+use Fcntl ':flock';
+use Time::HiRes "usleep";
+use Fcntl;
+use MIME::Base64;
+$Getopt::Std::STANDARD_HELP_VERSION='1';
+
+################################################################
+# Config options
+################
+# How long to discover when getting "all" APs
+# Will wait this time longer than the last new AP.
+my $discovery_timeout=10; 
+# If the discovery is run external (e.g. passed in from the GUI, or elsewhere)
+my $ext_discovery_timeout=2; 
+
+# How long to wait between checking for APs
+my $sleep=1;
+
+my $default_profile="default";
+my $default_scheduling="all";
+
+my $version="0.4";
+
+# This is set during AP association
+my $nick;
+$nick="wicrawler";
+
+# this is used to supress the discovery messages making it
+# a bit easier to read
+my $silence_discovery=1;
+# End Config options
+#################################################################
+
+# AUTOFLUSH
+$|=1;
+
+my $basedir;
+my $libdir;
+
+# Set basedir here so we can set the lib path dynamically.
+BEGIN { 
+	$basedir="@datadir@";
+	$libdir="@libdir@";
+}
+
+my $child;
+my $filter_file;
+my $apcore="$libdir/discovery/apcore";
+my $cutroot=1; # whether to cut the head in the xml file
+my $debug=0;
+my $run=0;
+my $verbosity=1;
+my $pcapwrite=1;
+my $pluginext="plugin.conf";
+my $profileext=".conf";
+my $plugindir="$libdir/plugins";
+my $profiledir="$basedir/profiles";
+my $outputdir="/var/log/wicrawl";
+my $config_file="/etc/wicrawl/wicrawl.conf";
+my $sessionid=time;
+my $madwifihack=0;
+my $profile;
+my $interface;
+my $interfaces;
+my $outputfilename="wicrawl_discovery-$sessionid.xml";
+my $pluginoutfile="wicrawl_plugins-output-$sessionid.xml";
+my $disc_iface;
+my $disc_running=0;
+my $discpid=0;
+my $ext_discovery=0;
+my $apcoredb;
+my $ipcpid=0;
+my $plugindb;
+my $filter="";
+my @aps;
+my @async_pids;
+my @plugin_q;
+my @filters;
+my @hooks_q;
+my @plugins;
+my @hooks;
+my @scheduled;
+my %cards;
+
+# This is used to determine whether you should keep the discovery engine running
+# all the time if we have multiple cards.
+my $kill_discovery=0;  
+
+use lib "$basedir/include/perl/";
+use AccessPoint;
+use Profile;
+use Plugin;
+
+# This will import the config from wicrawl.conf.  We do it here so
+# CLI params over rule the config params.
+sub import_config;
+import_config();
+
+#################################################################
+# Hard-coded static data for now
+
+my @plugin_runlengths=( "short", "medium", "long" );
+my @events=( "new-ap", "associated", "have-ip", "have-internet" );
+
+# TODO this info is in the Plugin.pm as well, 
+# eventually we need to factor one out
+my %hook_events=( "new-ap"         => 0,
+                  "associated"     => 1,
+                  "have-ip"        => 2,
+									"have-internet"  => 3,
+									"discovery"      => 4,
+                  "pre-discovery"  => 5,
+									"post-discovery" => 6,
+									"pre-ap"         => 7, 
+									"post-ap"        => 8  );
+
+#################################################################
+
+our($opt_d, $opt_D, $opt_f, $opt_F, $opt_h, $opt_i, $opt_I, $opt_k, $opt_K, $opt_m, $opt_n, $opt_p, $opt_P, $opt_s, $opt_t, $opt_v, $opt_w);
+getopts ("d:Df:F:h:i:I:kKmn:p:P:s:t:v:w");
+
+$outputdir =       $opt_d if(defined $opt_d);
+$debug =           $opt_D if(defined $opt_D);
+$interfaces =      $opt_i if(defined $opt_i);
+$filter_file =     $opt_I if(defined $opt_I);
+$outputfilename =  $opt_f if(defined $opt_f);
+$filter =          $opt_F if(defined $opt_F);
+$kill_discovery =  $opt_k if(defined $opt_k);
+$ext_discovery =   $opt_K if(defined $opt_K);
+$madwifihack =     $opt_m if(defined $opt_m);
+$nick =            $opt_n if(defined $opt_n);
+$default_profile = $opt_p if(defined $opt_p);
+$pluginoutfile =   $opt_P if(defined $opt_P);
+$sessionid =       $opt_s if(defined $opt_s);
+$discovery_timeout=$opt_t if(defined $opt_t);
+$verbosity =       $opt_v if(defined $opt_v);
+$pcapwrite =       $opt_w if(defined $opt_w);
+
+usage() unless (!defined($opt_h));
+usage() unless  (defined($opt_i));
+
+# Assemble hash of cards (values will be child processes)
+foreach(split(/,/, $interfaces)) {
+	my $tmp_int=$_;
+	my $cardfile="$outputdir/$tmp_int";
+	next if($tmp_int eq "");
+	if (!defined($disc_iface)) { $disc_iface=$tmp_int; }
+	$cards{$tmp_int}=0;
+	
+	# Create and/or delete card file
+	`> $cardfile`;
+}
+
+# We want to make sure that we kill the discovery between runs if 
+# There's not enough cards
+my $cardcnt=0;
+
+foreach my $keys (keys %cards) { $cardcnt++; }
+
+if (($madwifihack==1) && ($cardcnt==1) && ($default_profile ne "discovery") && ($ext_discovery == 0)) {
+	print "\n [!!!!!!!!!!] Madwifi hack is enabled, so you need more than one card/VAP to run in\n";
+	print "automatic mode (otherwise plugins wouldn't have a card to use).  You can use discovery\n";
+	print "mode with one card. See docs for more details (or check /etc/wicrawl/wicrawl.conf [!!!!!!!!!!!]\n\n";
+	exit 1;
+
+} elsif ($cardcnt==1) {
+	$kill_discovery=1;
+
+	print "  [*] I only see one card, so I'll have to kill discovery between runs..\n";
+
+} elsif	($cardcnt==0) {
+	print " [!!] No valid cards found, exiting now.\n";
+	exit 1;
+}
+
+# Have to kill the discovery when using madwifi driver so the discovery
+# (monitor mode) VAP doesn't change channels out from under the station mode
+# interface that is actually running the plugins.
+if($madwifihack==1) {
+	$kill_discovery=1;
+}
+
+if(!-X $apcore) {
+	die "Can't execute $apcore for discovery\n";
+}
+
+if($debug) { $verbosity=100; }
+
+if(! -d $outputdir) {
+	mkdir($outputdir) || die " [!!] Can't create output dir [$outputdir]\n\t$!\n";
+}
+
+# "Database" files 
+$apcoredb="$outputdir/$outputfilename";
+$plugindb="$outputdir/$pluginoutfile";
+my $logfile="$outputdir/wicrawl_plugin-engine.log";
+
+my $fifo="$outputdir/ipc";
+
+# Add the filter that was passed in too
+if((defined($filter)) && ($filter ne "")) {
+	push(@filters, $filter);
+}
+
+# Load in and validate filter list ...
+if((defined($filter_file)) && ($filter_file ne "") && (-r $filter_file)) {
+	open(FILTERS, "<$filter_file") || die " [!] Can't open filter file [$filter_file]\n";
+	foreach(<FILTERS>) {
+		my $tmpfilter=$_;
+
+		chomp($tmpfilter);
+		next if($tmpfilter =~ m/^[\s]*$/);
+		next if($tmpfilter =~ m/^#/);
+
+		eval { "" =~ m/$tmpfilter/; }; 
+		if($@) {
+			print "\n";
+			lprint(2, 0, "Filter [$tmpfilter] seems invalid, make sure it's a valid perl compatible regular expression, removing from list...\n");
+		} else {
+			$filters[@filters]=$tmpfilter;
+		}
+	}
+
+	close(FILTERS) || die " [!] Can't close filter file [$filter_file]\n";
+}
+
+#######################################################################
+# function lprint - log print function
+# 	Arugments: type of message (int), loglevel (int), string of $msg
+#		Returns: 0
+#		Notes:  
+#			Loglevels are:
+#				0 = Errors and fatal  (Always shown, -q for quiet)
+#				1 = Default logging   (default log level)
+#				2 = More info  				(-v)
+#				3 = All info          (-vv)
+#			Message Types are:
+#				0 = Info
+#				1 = Notice
+#				2 = Error
+####################
+sub lprint {
+	my $type=shift(@_);
+	my $loglevel=shift(@_);
+	my $msg=shift(@_);
+	my $chr="-";
+
+	# set the prefix character: '!' is err, '*' is notice
+	if ($type==1) {
+		$chr="*";
+	}	elsif ($type==2) {
+		$chr="!";
+	}
+
+	# generate the prefix chars
+	my $num=($loglevel==3) ? 2 : $loglevel;
+	$chr=" "x$num . "[" . "$chr"x(3-$num) . "]";
+
+	# print if loglevel is high enough
+	if($loglevel <= $verbosity) {
+		$msg="$chr $msg";
+		print $msg;
+	}
+
+	# log everything
+	open(LOG, ">>$logfile") || die "  [!!!] Can't open logfile $logfile\n";
+	print LOG $msg;
+	close(LOG) || die "  [!!!] Can't close logfile $logfile\n";
+	
+	return 0;
+}
+#######################################################################
+# function backup
+#		Arguments: filename to backup
+#		Returns: new filename
+#		Description:  Backs up the file
+#
+###########################
+sub backup {
+	my $file=shift(@_);
+	my $have_filename=0;
+	my $new=$file;
+	my $count=0;
+
+	while () {
+		last if (! -f $new);
+		$new="$file.$count";
+		$count++;
+	}
+
+	if($file ne $new) {
+		lprint(0, 2, "Backing up file \n\t[$file] to \n\t[$new]\n");
+		rename($file, $new) || lprint(2, 2, "Can't rename file [$file] to [$new]\n");
+	}	
+
+	return $new;
+}
+#######################################################################
+# function check_discover
+#		Arguments: $pid of discovery
+#		Returns: 0,1
+#
+#		Description: Checks to see if discovery has stopped/failed.
+#
+###########################
+sub check_discover {
+	my $pid=shift(@_);
+
+	# Make sure things are going ok if we don't see output.
+	my $kid=waitpid($pid, WNOHANG);
+	if ($kid==-1) {
+		my $msg="Discovery stopped or died before we got any output\n";
+		$msg.=  "\tVerify your interface settings, and check logs\n";
+		$msg.=  "\tAlso, probably want to verify you're in monitor mode\n";
+		lprint(2, 0, $msg);
+		cleanup();
+		exit 1;
+	}
+
+	return 0;
+}
+#######################################################################
+# function discover
+#		Arguments: interface
+#		Returns: 0,1
+#
+#		Description: Do AP discovery exactly how long we need it depending
+#		on the profiles discovery scheduling (get first, get best, etc)
+#
+###########################
+sub discover {
+	my $interface=shift(@_);
+	my $done_discovery=0;
+	my $final_check=0;
+	my $modified;
+	my $time;
+	my $scheduling=$profile->scheduling();
+
+	#
+	# Start discovery here
+	#
+	# Don't start discovery if it's already running or if we have an external
+	# discovery mechanism
+	if(($disc_running==0) && ($ext_discovery==0)) {
+		if(($child=fork)==0) {
+			# reset signal handler
+			$SIG{'INT'} = 'DEFAULT';
+			
+			# Call pre discovery hooks with no AP context
+			run_hooks("", "pre-discovery");
+
+			# make sure to set the process group
+			setpgrp($$, $$);
+
+			# Set any extra options for apcore here...
+			my $extopts="";
+			if($madwifihack==1) {
+				$extopts="-n";
+			}
+
+			#my $system="$apcore -q -o /dev/null -I $fifo";
+			my $system="$apcore -q -o /dev/null -I $fifo $extopts";
+
+			# Write out a pcap file per run if '-w' was passed in
+			if($pcapwrite==1) {
+				$system.=" -w $outputdir/wicrawl_pcap-$sessionid-$run.cap";
+			}
+
+			$system.=" $interface";
+
+			lprint(1, 1, "Executing Discovery:\n\t[$system]\n");
+			my @args=split(/[\s]+/, $system);
+
+			exec(@args) || lprint (2, 0, "Couldn't start $apcore\n\t") && die "$!";
+			#exec("cp", "test.xml", $apcoredb) 
+			# || lprint (2, 0, "Couldn't start $apcore\n") && die;
+
+		} else {
+			# make sure we exclude it from the plugin running
+			$cards{$interface}=$child;
+
+			$disc_running=1;
+			lprint(1, 3, "Forked child [$child] for discovery\n");
+			$discpid=$child;
+		}
+	}
+
+	#
+	# This section will stop discovery as determined by the profile
+	#
+
+	# This is the start timer and start count of access points to reference
+	# when deciding if enough time has passed since the last discovered access
+	# point when using the 'all' scheduling.
+	my $timer=time;
+	my $cur_ap_count=0;
+	my $last_ap_count=0;
+
+	# This keeps track to make sure we've discovered at least some APs
+	# in case we're using the 'all' scheduling type (and waiting for timers)
+	my $some_discovery=0;
+
+	# If we have external discovery, then we want to use the "all" scheduling logic
+	# but reduce the timeout values.  This is just to make sure that we get all of the APs pased in
+	if($ext_discovery==1) {
+		$discovery_timeout=$ext_discovery_timeout;
+		$scheduling="all";
+	}
+
+	while(!$done_discovery) {
+
+		$cur_ap_count=check_for_ap();
+		
+		# If we don't have any plugins to run (e.g. discovery profile),
+		# then we don't need to stop discovery... ever..
+		if(!@plugin_q) {
+
+			# make sure it's running ok...
+			check_discover($discpid) if ($ext_discovery==0);
+			sleep 1;
+			next;
+		}
+	
+		# If scheduling is first, signal or active, and we have new APs 
+		# schedule them right away
+		if(($scheduling ne "all") && ($cur_ap_count >= 1)) {
+			$done_discovery=1;
+
+		# if we have new APs, and we have "all" scheduler, just reset the timer
+		} elsif (($scheduling eq "all") && ($cur_ap_count > $last_ap_count)) {
+
+			lprint(0, 3, "Found new AP, resetting AP wait timer...\n");
+			$timer=time;
+			$last_ap_count=$cur_ap_count;
+
+			#setting this so we know we have some discovered
+			$some_discovery=1;
+
+		# If we have no new APs, and we have "all" scheduler, check to see if 
+		# enough time has passed
+		} elsif (($scheduling eq "all") && ($cur_ap_count == $last_ap_count) && ($some_discovery==1)) {
+			
+			my $dtime=time-$timer;
+
+			if ($dtime > $discovery_timeout) {
+				$done_discovery=1;
+			} else {
+
+				my $msg="Found new APs, but it's only been [$dtime] since last found AP\n";
+				$msg.="\t(Waiting for no new APs for [$discovery_timeout] seconds)\n";
+
+				lprint(0,3, "$msg");
+			}
+		} 
+
+
+		#
+		# This section handles stopping discovery (as needed)
+		#
+
+		# Don't need to stop discovery if it's external
+		sleep 1 && next if($ext_discovery==1);
+
+		# Make sure things are going ok if we don't see output.
+		if ($done_discovery==0) {
+			check_discover($discpid);
+		}
+
+		if($done_discovery==0) {
+			sleep 1;
+		}
+	}
+
+	# Don't need to kill discovery (or run hooks) if it's external
+	return 0 if($ext_discovery==1);
+
+	if ($kill_discovery) {
+		kill_pid($discpid);
+		$discpid=0;
+
+		# Since this releases the card to be scheduled, we don't want to actually
+		# run it when using the madwifi driver (since the discovery VAP can affect the 
+		# station mode VAP)
+		if($madwifihack==0) {
+			$cards{$interface}=0;
+			lprint(1, 1, "Discovery is stopped, now putting [$interface] in the queue for scheduling\n");
+		} else {
+			$cards{$interface}=-1;
+			lprint(1, 1, "Madwifi hack enabled, not scheduling card [$interface] for plugins\n");
+		}
+
+		$disc_running=0;
+	}
+
+
+	run_hooks("", "post-discovery");
+	lprint(1, 1, "Found APs, so, let's start using them...\n");
+	return 0;
+}
+
+#######################################################################
+# function check_for_ap - Check to see if there are available APs
+#		Arguments: none
+#		Returns 0 or number of new APs found
+#
+###########################
+sub check_for_ap() {
+  my(@wireless, @APS);
+  my $XML;
+	my $found=0;
+	my $size=0;
+
+	# check for empty file 122 is the size of the headers alone.
+	$size=(stat("$apcoredb"))[7];
+	if ((defined($size)) && ($size <= 122)) {
+		lprint(0, 3, "Found no APs in discovery check, I'll wait a bit more...\n");
+		return 0;
+	}
+
+	$XML = XML::Smart->new($apcoredb);
+	if($cutroot) {
+		$XML = $XML->cut_root;
+	}
+
+	@wireless = @{$XML->{"wireless-network"}};
+	my $count=@wireless;
+
+	# Look through every one to find at least one with length
+	foreach(@wireless) {
+		my $ssid=$_->{SSID};
+		if($ssid ne "") {
+			$found=1;
+		}
+		last if ($found==1);
+	}
+
+	if(($found == 1) && ($count > @scheduled)) {
+		lprint(0, 2, "Found [$count] APs in discovery check\n");
+		return $count - @scheduled;
+
+	} else {
+		my $msg="Found no new APs in discovery, I'll wait a bit more...\n";
+
+		if(@scheduled >= 1) {
+			$msg.="\t(last count [" . @scheduled . "] new count [$count])\n";
+		}
+
+		lprint(0, 3, $msg);
+		return 0;
+	}
+}
+
+#######################################################################
+# function get_ap - Get the APs to use
+#		Arguments: none
+#		Returns @ap (@array of AccessPoints.pm)
+#
+###########################
+sub get_ap() {
+	my(@wireless, @APS);
+	my $XML; 
+	my $count=0;
+
+	$XML = XML::Smart->new($apcoredb);
+	if($cutroot) {
+		$XML = $XML->cut_root;
+	}
+	@wireless = @{$XML->{"wireless-network"}};
+	lprint(0, 2, "Scanning input XML file\n");
+	foreach(@wireless) {
+
+		# Don't want to get APs with no ssid for now
+		next if((!defined($_->{SSID})) || ($_->{SSID} eq ""));
+
+		# Check to see if we've scheduled this in a previous run
+		my $was_scheduled=0;
+		foreach my $bssid_c (@scheduled) {
+			$was_scheduled=1 if($bssid_c eq $_->{BSSID});
+			last if($was_scheduled);
+		}
+
+		next if ($was_scheduled);
+		
+		my $ap=AccessPoint->new();
+		$ap->ssid            ($_->{SSID});
+		$ap->bssid          ($_->{BSSID}); 
+		$ap->time                     (0); # TODO get from meta-tags
+		$ap->packets                  (0); # TODO get from meta-tags
+		$ap->plugin                   (0);
+		$ap->event                    (0); 
+		$ap->timestamp                (0); 
+		$ap->encryption($_->{encryption}); 
+		$ap->power          ($_->{power}); # TODO where from?
+		$ap->channel      ($_->{channel});
+
+		# This gets 99.85 percent of the AP's that i've seen
+		# TODO allow international chars
+		if ($ap->ssid =~ /[^\w\s,-_\.\^!#\{\[\]\}]/) {
+			my $msg="Skipping AP SSID [" . $ap->ssid . "] for bad characters\n";
+			$msg.="\tIf you think these are valid, please contact the developers\n";
+			$msg.="\tso we can change the filters\n";
+			lprint(2,1, $msg);
+			next;
+		}
+
+		lprint(0, 3, "Adding AP ssid [" . $ap->ssid . "]\n");
+		$APS[$count]=$ap;		
+		push(@scheduled, $ap->bssid());
+		set_xml($ap, "event", $ap->event());
+		$count++;
+	}
+	if($count==0) {
+		lprint(0, 2, "Couldn't find any APs, trying again\n");
+	}
+
+	# Put the APs in the scheduled order according to the profile
+	my $apref = schedule(\@APS);
+	@APS = @{$apref};
+
+	return @APS;
+}
+
+#######################################################################
+# function wait_children - cleans up after the kids.
+# 	Arugments:  0 to wait on children, 1 to kill children.
+#		Returns: 0
+#####################
+sub wait_children {
+	my $iskill=shift(@_);
+
+	my $kid; my $pid;
+	my @allpids=values %cards;
+	push(@allpids, @async_pids);
+
+	foreach(@allpids) {
+		$pid=$_;
+		# no child
+		next if ($pid <= 0);
+		next if ($pid == $discpid);
+
+		if($iskill==0) {
+			# time to wait for a bit
+			$kid=waitpid($pid, 0);
+			lprint(0,2, "Child [$pid] finished. (wait returned [$kid])\n");
+		} else {
+			lprint(0, 3, "Killing child [$pid]\n");
+			kill_pid($pid);
+		}
+	}
+
+	# make sure discovery is dead as well
+	if(($iskill) && ($discpid!=0)) {
+		lprint(0, 2, "Killing discovery [$discpid]\n");
+		kill_pid($discpid)
+	}
+
+	# make sure IPC thread is dead.
+	if(($iskill) && ($ipcpid!=0)) {
+		lprint(0, 2, "Killing IPC [$ipcpid]\n");
+		kill_pid($ipcpid)
+	}
+
+	# Clear the asynchronous pids queue since it should be clean now
+	splice(@async_pids);
+
+	lprint(1, 2, "Children finished.\n");
+	return 0;
+}
+
+#######################################################################
+# function read_plugins - Get the list of plugins for the current profile
+#                         It loads up the global @hooks and @plugins
+# 	Arugments: none
+#		Returns: 0
+#
+#   TODO: use normal key=value pairs instead of perl style $key="value";
+####################
+sub read_plugins() {
+	my @plugin_list=split(/[\s]+/, $profile->plugins());	
+	my ($plugin_config, $return);
+	my $plugin_count=0;
+	my $hook_count=0;
+	my $runlengths=$profile->runlengths();
+
+	lprint(0, 1, "Loading plugins... \n");
+
+	# Get the event levels for validation
+	my $s_events=join(" ", @events);
+	my $h_events=join(" ", join(" ", keys %hook_events));
+
+	foreach(@plugin_list) {
+		my $plugin=$_;
+
+		# These are what we get from the plugin config file
+		use vars qw($name $bin $description $version $monitor $runlength $offline $runlevel $type $event $timeout $is_synchronous %plugin_env);
+
+		# Do this otherwise we get stale info if some plugins don't set all vars
+		undef $name;      undef $bin;            undef $description; undef $version; undef $monitor; 
+		undef $runlength; undef $offline;        undef $runlevel;    undef $type;    undef $event; 
+		undef $timeout;   undef $is_synchronous; undef %plugin_env;
+
+		$plugin_config="$plugindir/$plugin/$pluginext";
+		if(! -r $plugin_config) {
+			lprint(2, 1, "Can't find the configured plugin\n\t(Trying $plugin_config)\n");
+			next;
+		}
+
+		unless ($return = do $plugin_config) {
+			warn "  [!] Couldn't parse $plugin_config: $@" if $@;
+			warn "  [!] Couldn't run $plugin_config: $!"   unless defined $return;
+			warn "  [!] Couldn't run $plugin_config"       unless $return;
+			next;
+		}
+
+		# Set some defaults in case the plugins don't give all the parameters...
+		$is_synchronous=1             if(!defined($is_synchronous));
+		$description="No Description" if(!defined($description));
+		$version="0.1"                if(!defined($version));
+		$monitor="no"                 if(!defined($monitor));
+		$offline="no"                 if(!defined($offline));
+		$type="scheduled"             if(!defined($type));
+		$timeout=30                   if(!defined($timeout));
+
+		# These are required...
+		if(!defined($name)) {
+			lprint(1,2, "Name is not defined for plugin [$plugin], skipping this plugin\n");
+			next;
+		}
+		if(!defined($runlength)) {
+			lprint(1,2, "runlength is not defined for plugin [$plugin], skipping this plugin\n");
+			next;
+		}
+		if(!defined($runlevel)) {
+			lprint(1,2, "runlevel is not defined for plugin [$plugin], skipping this plugin\n");
+			next;
+		}
+		if(!defined($event)) {
+			lprint(1,2, "Plugin event level is not defined for plugin [$plugin], skipping this plugin\n");
+			next;
+		}
+
+		# Only add this plugin if it's in a runlength for this profile
+		next if($runlengths !~ /$runlength/);
+
+		my @all_events=split(/,/, $event);
+	
+		# We need to make sure that plugins can be registered for multiple events
+		foreach $event (@all_events) {
+
+			# TODO Do some more validation of the plugin parameters:
+			if (! -x "$plugindir/$plugin/$bin") {
+				lprint(1, 2, "Plugin binary [$plugindir/$plugin/$bin] is not valid or executable, not adding this plugin\n");
+			}
+
+			# See README.plugins to see the differences between plugin types
+			if(($type eq "scheduled") || ($type eq "")) {
+
+				# Verify this is a valid event level
+				if($s_events !~ /\b$event\b/) {
+					lprint(1, 2, "Plugin [$plugin] has an invalid scheduled event level of [$event].  Not adding this plugin\n"); 
+					next;
+				}
+
+				$plugins[$plugin_count]=Plugin->new();
+				$plugins[$plugin_count]->populate($name, $bin, $description, $version, $monitor, $runlength, 
+																					$offline, $runlevel, $event, $plugin, $timeout, $type, $is_synchronous);
+
+
+				# Push the plugin environment settings into the plugin.pm
+				if(defined(%plugin_env)) {
+					foreach(keys %plugin_env) {
+						$plugins[$plugin_count]->setpluginenv($_, $plugin_env{$_});
+					}
+				}
+
+				$plugin_count++;
+
+			} elsif ($type eq "hook") {
+
+				# Verify this is a valid hook event level
+				if($h_events !~ /\b$event\b/) {
+					lprint(1, 2, "Plugin [$plugin] has an invalid hook event level of [$event].  Not adding this plugin\n"); 
+					next;
+				}
+
+				$hooks[$hook_count]=Plugin->new();
+				$hooks[$hook_count]->populate($name, $bin, $description, $version, $monitor, $runlength, 
+																			$offline, $runlevel, $event, $plugin, $timeout, $type, $is_synchronous);
+
+
+				# Push the plugin environment settings into the plugin.pm
+				if(defined(%plugin_env)) {
+					foreach(keys %plugin_env) {
+						$plugins[$plugin_count]->setpluginenv($_, $plugin_env{$)});
+					}
+				}
+
+				$hook_count++;
+
+			} else {
+				lprint(1, 2, "Plugin type [$type] is invalid, not adding to plugin list\n");
+				next;
+			}
+				
+			lprint(1, 2, "Added Plugin [$name] to active plugins\n");
+			lprint(0, 3, "\tPlugin Version is     [$version]\n");
+			lprint(0, 3, "\tEvent level is:       [$event]\n");
+			lprint(0, 3, "\tRun length is:        [$runlength]\n");
+			lprint(0, 3, "\tRun level is:         [$runlevel]\n");
+			lprint(0, 3, "\tPlugin type is:       [$type]\n");
+			lprint(0, 3, "\tPlugin executable is  [$bin]\n");
+
+
+		} # End foreach(@all_events)
+	}
+	lprint(0, 2, "Done Loading plugins...\n");
+
+	# instead of returning the array, we load up the global @plugins and @hooks
+	return 0
+}
+
+#######################################################################
+# function get_profile - loads the current profile information
+# 	Arugments: ??
+#		Returns: ??
+####################
+sub get_profile() {
+	use vars qw($enabled_plugins $runlengths $card_scheduling $killdisc $timeout);
+
+	my $profile_conf="$profiledir/$default_profile$profileext";
+	lprint(0, 1, "Loading profile... [$profile_conf]\n");
+
+	if(-r $profile_conf) {
+		unless (my $return = do $profile_conf) {
+			die "  [!!] Couldn't parse $profile_conf: $@" if $@;
+			die "  [!!] Couldn't run $profile_conf: $!"   unless defined $return;
+			die "  [!!] Couldn't run $profile_conf"       unless $return;
+		}
+	} else {
+		lprint(2, 0, "Can't find the given profile in \"$profile_conf\".  Exiting.\n");
+		exit 1;
+	}
+
+	do $profile_conf;
+	my $profile=Profile->new;
+
+	# Get the list of plugins to run
+	$profile->plugins($enabled_plugins);
+
+	# Verify that the runlengths are valid
+	my $count=0;
+	my @runlengths=split(/[\s]+/, $runlengths);
+	foreach(@runlengths) {
+		if(! /(short|medium|long)/) {
+			# Pull the runlength out if it doesn't match. 
+			lprint (2, 1, "Profile runlegth \"$_\" is not valid, removing...\n");
+			$runlengths=~s/\b$_\b//;
+		}
+		$count++;
+	}
+
+	$profile->runlengths($runlengths);
+	lprint(0, 3, "Using runlengths: [" . $profile->runlengths . "]\n");
+
+	# Get the card scheduling type
+	if($card_scheduling !~ /(first|active|signal|all)/) {
+
+		my $msg="Profile $default_profile does not have a valid scheduling type\n";
+		$msg .= "     using default of $default_scheduling instead\n";
+		lprint(2, 1, $msg);
+
+		$profile->scheduling($default_scheduling);
+
+	} else {
+		$profile->scheduling($card_scheduling);
+	}
+
+	# The override timeout for the profile
+	$profile->timeout($timeout);
+
+	# Kill discovery between runs
+	$profile->killdisc($killdisc);
+
+	# Set globally if it is set in the profile
+	if(($killdisc =~ /true/i) || ($killdisc eq "1")) {
+		$kill_discovery=1;
+	}
+
+	lprint(0, 3, "Using scheduling type [" . $profile->scheduling . "]\n");
+	lprint(0, 2, "Done loading profile.\n");
+	return $profile;
+}
+#######################################################################
+# function get_plugin_queue() - creates a 3d array of plugins to run for each AP
+# 	Arugments:
+#		Returns: a 3d array with Plugin.pm's as leaves
+#
+# 	- First dimension corresponds to the event levels (new-ap, associated,
+# 	  have-ip, have-internet sequentially)
+# 	- Second dimension corresponds to the Run lengths (short, medium, long
+# 	  sequentially)
+# 	- third dimension is plugin objects sorted by their run level
+#
+# 	@plugin_q[event level][run length][plugin objs sorted by run level]
+####################
+sub get_plugin_queue() {
+	my @queue;
+	my ($inserted, $cur_queue);
+
+	return @queue if(!@plugins);
+
+	foreach(@plugins) {
+		my $cur_plugin=$_;
+		$inserted=0; 
+
+		# Ignore the plugins of type "hook"
+		# we only want the "scheduled" plugins here
+		next if ($cur_plugin->type =~ m/hook/i);
+
+		# Get the ref of the current queue
+		my $eventnum=$cur_plugin->eventnum;
+		my $runlength=$cur_plugin->runlengthnum;
+
+		if(defined $queue[$eventnum][$runlength]) {
+			$cur_queue=$queue[$eventnum][$runlength];
+		} else {
+			$queue[$eventnum][$runlength]=[];
+			$cur_queue=$queue[$eventnum][$runlength];
+			${$cur_queue}[0]=$cur_plugin;
+			next;
+		}
+
+    # insert the current plugin at the end
+    ${$cur_queue}[$#{$cur_queue} + 1]=$cur_plugin;
+
+	}
+
+  # sort them by runlevel
+  @{$cur_queue} = sort {$b->runlevel() <=> $a->runlevel()} @{$cur_queue};
+
+	return @queue;
+}
+#######################################################################
+# function get_hook_queue() - creates a 2d array of plugins to run for each AP
+# 	Arugments:
+#		Returns: a 2d array with Plugin.pm's as leaves
+#
+# 	- First dimension corresponds to the hook event 
+# 	- Second dimension is the plugin objects sorted by their run level
+#   
+#   Note that this is a 2d array instead of 3 like the scheduled plugins
+#   because the hooks type of plugin does not have a runlength.
+#
+# 	@hooks_q[hook level][plugin objs sorted by run level]
+####################
+sub get_hook_queue() {
+	my @queue;
+	my ($inserted, $cur_queue);
+
+	return @queue if(!@hooks);
+
+	foreach(@hooks) {
+		my $cur_plugin=$_;
+		$inserted=0; 
+
+		# Ignore the plugins of type "scheduled"
+		# we only want the "scheduled" plugins here
+		next if ($cur_plugin->type !~ m/hook/i);
+
+		# Get the ref of the current queue
+		my $eventnum=$cur_plugin->eventnum;
+
+		# If the current event array is defined, we get a reference to the queue so
+		# we can insert the plugin where it belongs, otherwise we create the array,
+		# and take the reference.
+		if(defined $queue[$eventnum]) {
+			$cur_queue=$queue[$eventnum];
+		} else {
+			$queue[$eventnum]=[];
+			$cur_queue=$queue[$eventnum];
+			${$cur_queue}[0]=$cur_plugin;
+			next;
+		}
+
+		# insert the current plugin at the end
+		${$cur_queue}[$#{$cur_queue} + 1]=$cur_plugin;
+
+		# sort them by runlevel
+		# TODO run this once per queue instead of once per hook
+		@{$cur_queue} = sort {$b->runlevel() <=> $a->runlevel()} @{$cur_queue};
+	}
+
+	return @queue;
+}
+#######################################################################
+# function xmlupdate - add things to the xml file
+# 	Arugments: $AP, 
+#		Returns: 0
+#   TODO:  OK, so this generates some pretty ugly XML.  Need to figure out how
+#   to force XML::Smart to put data in tags or meta-tags instead of letting it
+#   decide.
+####################
+sub xmlupdate {
+	my $ap=shift(@_);
+	my $type=shift(@_);
+
+	# Note!  If you want to add things to be able to update, set them here...
+	my @apmembers=("packets", "power", "latitude", "longitude");
+	my $XML;
+
+	if(! -f $apcoredb) {
+		lprint(0, 3, "Pre-populating $apcoredb\n");
+		open(DB, ">$apcoredb") || die " [!!] Can't open $apcoredb\n";
+		flock(DB, LOCK_EX);
+
+		print DB "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n";
+		print DB "<detection-run wicrawl-version=\"$version\"";
+		print DB " start-time=\"" . localtime() . "\">\n";
+		print DB "</detection-run>\n";
+
+		flock(DB, LOCK_UN);
+	}
+
+	# need a FH to use flock
+	open(XML, ">>$apcoredb") || die " [!!] Can't open $apcoredb\n";
+	flock(XML, LOCK_EX);
+	$XML = XML::Smart->new($apcoredb);
+
+	if($cutroot) {
+		$XML = $XML->cut_root;
+	}
+
+	if($type eq "update") {
+		my $size=(stat("$apcoredb"))[7];
+		my $found=0;
+
+		# We only want to search through the xml file if it has an
+		# existing tag, otherwise it creates an empty one
+		if ((defined($size)) && ($size >= 122)) {
+			foreach(@{$XML->{"wireless-network"}}) {
+				my $aptest=$_;
+
+				# If it's the same AP, we'll udpate it
+				if($aptest->{BSSID} eq $ap->bssid()) {
+				
+					# Loop over each possible memeber of the access point passed in
+					# and update the XML version for those that exist
+					foreach my $member (@apmembers) {
+						if((defined($ap->$member())) && ($ap->$member() ne "0")) {
+							$aptest->{$member} = $ap->$member();
+						}
+					}
+
+					$found=1;
+					last;
+
+				}
+			}
+		}
+
+		if(!$found) {
+			lprint(2,2, "Update received for non-existing AP\n");
+		}
+
+	} elsif ($type eq "new") {
+
+		my $accesspoint = {
+			SSID       => $ap->ssid(),
+			BSSID      => $ap->bssid(),
+			encryption => $ap->encryption(),
+			timestamp  => time(),
+			channel    => $ap->channel(),
+		} ;
+
+		push(@{$XML->{"wireless-network"}} , $accesspoint) ;
+
+	} else {
+		lprint(2,1, "Received bad type in xmlupdate()\n");
+		return 0;
+	}
+
+	$XML->save($apcoredb);
+	flock(XML, LOCK_UN);
+	close(XML) || die " [!!] Can't close $apcoredb\n";
+
+	return 0;
+}
+#######################################################################
+# function plugin_print - prints the ouput from the plugins
+# 	Arugments: $data, plugin name, ssid, bssid
+#		Returns: 0
+#   TODO:  OK, so this generates some pretty ugly XML.  Need to figure out how
+#   to force XML::Smart to put data in tags or meta-tags instead of letting it
+#   decide.
+####################
+sub plugin_print {
+	my $data=shift(@_);
+	my $plugin=shift(@_);
+	my $ssid=shift(@_);
+	my $bssid=shift(@_);
+	my $XML;
+
+	my @adata=split(/\n/, $data);
+	foreach(@adata) {
+		print "  $plugin> $_\n";
+	}
+
+	# need a FH to use flock
+	open(XML, ">>$plugindb") || die " [!!] Can't open $plugindb\n";
+	flock(XML, LOCK_EX);
+	$XML = XML::Smart->new($plugindb);
+
+	# encode it so we don't have to worry about sanitising it
+	$data=encode_base64($data);
+
+  my $size=(stat("$plugindb"))[7];
+	my $found=0;
+
+	# We only want to search through the xml file if it exists
+	# Otherwise it will create an empty entry
+	if ((defined($size)) && ($size >= 122)) {
+		foreach(@{$XML->{pluginoutput}->{accesspoint}}) {
+			my $ap=$_;
+
+			# If this AP is already listed, then just add the plugin info
+			if(($ap->{ssid} eq $ssid) && ($ap->{bssid} eq $bssid)) {
+				my $pluginxml= {
+					name     => $plugin, 
+					run      => $run, 
+					output   => $data
+				};
+				push(@{$ap->{plugin}}, $pluginxml);
+				$found=1;
+				last;
+			}
+		}
+	}
+
+	# push in a whole new record if we haven't found one earlier
+	if(!$found) {
+		my $accesspoint = {
+			ssid      => $ssid ,
+			bssid     => $bssid ,
+			plugin    => {
+				name      => $plugin,
+				run       => $run,
+				output    => $data
+			}
+		} ;
+
+		push(@{$XML->{pluginoutput}->{accesspoint}} , $accesspoint) ;
+	}
+
+	$XML->save($plugindb);
+	flock(XML, LOCK_UN);
+	close(XML) || die " [!!] Can't close $plugindb\n";
+
+	return 0;
+}
+
+#######################################################################
+# function check_cards - Check to see if there are any available cards
+# 	Arugments: ??
+#		Returns: 
+####################
+sub check_cards() {
+	my $check_pid;
+	my $found=0;
+	my $card;
+
+	foreach (keys %cards) {
+		$card=$_;
+		$check_pid=$cards{"$card"};
+
+		# check if it's already reaped (like on init)
+		if($check_pid==0) {
+			$found=1;	
+			last;
+		} elsif ($check_pid==-1) {
+			next;
+		}
+
+		my $kid=waitpid($check_pid, WNOHANG);
+
+		if ($kid != 0) {
+			lprint(0, 2, "Reaped child [$check_pid], scheduling interface [$card]\n");
+			$cards{"$card"}=0;
+			$found=1;
+			last;
+		}
+	}
+
+	if($found) {
+		return $card;
+	} else {
+		return 0;
+	}
+}
+#######################################################################
+# function update_replay_path - Gets the updated path from XML, and puts
+# it into the $ap reference
+#
+# 	Arugments: $ap
+#		Returns: 0
+####################
+sub update_replay_path {
+	my $ap=shift(@_);
+
+	my $ppath=get_xml($ap, "plugin-path");
+	my @pairs=split(/\|/, $ppath);
+	chomp(@pairs);
+
+	foreach my $pair (@pairs) {
+		next if($pair eq "");
+		$pair=~m/(^.*):(.*$)/;
+		my $key=$1;
+		my $value=$2;
+
+		if((!defined($key)) || (!defined($value))
+		  || ($key eq "")   || ($value eq "")) {
+			lprint(0, 3, "Got bad plugin-path from XML file\n");
+			next;
+		}
+	
+		# Skip it if it's not an int
+		if($key !~ /^\d*$/) {
+			lprint(0, 3, "Got bad key from XML file\n");
+			next;
+		}
+		
+		$ap->setpluginpath($key, $value);
+	}
+
+	return 0;
+}
+#######################################################################
+# function replay_path - Replay the plugins that we ran to get to this event level
+# 	Arugments: $ap, event level number
+#		Returns: 0
+####################
+sub replay_path {
+	my $ap=shift(@_);
+	my $eventlvl=shift(@_);
+	my $plugin;
+
+	# iterate through event levels until the current one, and run the given plugin
+	for my $l_eventlvl (0 .. $eventlvl - 1) {
+		lprint(0, 2, "Replaying plugin for Access Point [" . $ap->ssid . "] for event level [$l_eventlvl]\n");
+
+		my $name=$ap->getpluginpath($l_eventlvl);
+		if((!defined($name)) || ($name eq "")) {
+			lprint(0, 3, "Replay path for [" . $ap->ssid . "] found empty element for event level [$l_eventlvl]\n");
+			return 1;
+		}
+
+		# Get the plugin reference for the plugin name we've stored
+		foreach(@plugins) {
+			$plugin=$_;
+			last if($plugin->name() eq $name);
+		}
+
+		my $eventlvl_name=get_eventlvl_name($eventlvl);
+
+		run_plugin($ap, $plugin, $eventlvl_name);
+	}
+	
+	return 0;
+}
+#######################################################################
+# function run_ap - takes an AP, and runs the plugins for it.
+# 	Arugments: reference to the needed AP. 
+#		Returns: 
+####################
+sub run_ap {
+	my $ap=shift(@_);
+	my $runlen=shift(@_);
+	my $msg;
+
+	# Try to update the eventlvl to what is in XML	
+	my $event=get_xml($ap, "event");
+	my $eventlvl=0;
+
+	# Search through the event-level names sequentially until 
+	# we get to the current, and the eventlvl becomes the level number
+	# (not too many to search through...)
+	my $i=0;
+	foreach(@events) {
+		$eventlvl=$i if($_ eq $event);
+		$i++;
+	}
+
+	lprint(1, 1, "Running plugins for Access Point [" . $ap->ssid . "]\n");
+
+	if($eventlvl!=0) {
+
+		# Pre-check for plugins in this eventlvl/runlen
+		# so we don't run plugins we don't need to.
+		if(!defined($plugin_q[$eventlvl][$runlen])) {
+			lprint (2, 2, "There are no plugins configured for this event and run length\n");
+			return 0;
+		}
+
+		lprint(1, 1, "Replaying plugin path to get to next runlength\n");
+		update_replay_path($ap);
+
+		if(replay_path($ap, $eventlvl) == 1) {
+			lprint(2, 2, "Can't replay plugins for [" . $ap->ssid 
+			       . "], skipping to next AP\n");
+
+			return 1;
+		}
+		lprint(1, 1, "Plugins have been re-run, resuming current runlength\n");
+	}
+	
+	EVENT: foreach ($eventlvl .. $#{plugin_q}) {
+		lprint(1, 3, "Entering event level: [$events[$eventlvl]]\n");	
+		set_xml($ap, "timestamp", time);
+		set_xml($ap, "event", $events[$eventlvl]);
+
+		if(!defined($plugin_q[$eventlvl][$runlen])) {
+			lprint (2, 2, "There are no plugins configured for this event and run length\n");
+			return 0;
+		}
+
+		my $runlvl=0;
+		foreach (@{$plugin_q[$eventlvl][$runlen]}) {
+			my $plugin=$plugin_q[$eventlvl][$runlen][$runlvl];
+			lprint (1, 3, "Entering next run level: [$runlvl]\n");	
+
+			my $eventlvl_name=get_eventlvl_name($eventlvl);
+
+			my $rc=run_plugin($ap, $plugin, $eventlvl);
+
+			# Check to see if the plug-in is increasing the event_level
+			if ($rc > ($eventlvl+7)) {
+				$msg="Plugin [" . $plugin->name() . "] increased event level\n";
+				lprint(1, 1, $msg);
+
+				set_xml($ap, "event", $events[$eventlvl + 1]);
+				$ap->event($eventlvl);
+
+				run_hooks($ap, $events[$eventlvl + 1]);
+
+				# Store which plugin worked so we can use it later
+				$ap->setpluginpath($eventlvl, $plugin->name());
+
+				# Also store the plugin path in XML so the parent
+				# process (plugin-scheduler) has access to it.
+				my $ppath=get_xml($ap, "plugin-path");
+				$ppath .= "$eventlvl:" . $plugin->name() . "|";
+				set_xml($ap, "plugin-path", $ppath);
+
+				next EVENT;
+			}
+		} continue { $runlvl++; } 
+
+		# We want to return here because this means that none of the
+		# plugins for the given event level have been successful in 
+		# changing the event.
+		return 0;
+	} continue { $ap->event(++$eventlvl); } 
+
+	set_xml($ap, "plugin", "none");
+	set_xml($ap, "timestamp", time);
+
+	return 0;
+}
+#######################################################################
+# function run_plugin - run the plugin on the given AP;
+# 	Arugments: $ap, $plugin
+#		Returns:  return code of the plugin
+####################
+sub run_plugin {
+	my $ap=shift(@_);
+	my $plugin=shift(@_);
+	my $eventlvl_name=shift(@_);
+	my $msg; my $system; my $pid; my $kid; 
+	my $reaped=0; my $timer=0; my $killed=0; my $rc=0;
+	my $output="";
+
+  $system=$plugindir . "/" . $plugin->plugindir() . "/" . $plugin->bin();
+
+	if((!defined($interface)) || ($interface eq "")) {
+		$interface="none";
+	}
+
+	# For some hook events we don't have the context of a Access Point so we
+	# don't want to set the variables associated with it
+	if(defined($ap)) {
+		$system.=" -b " .   $ap->bssid();
+		$system.=" -e " .   $ap->encryption();
+		$system.=" -i " .   $interface;
+		$system.=" -n '" .  $nick;
+		$system.="' -r " .  $run;
+		$system.=" -s '" . $ap->ssid();
+		$system.="' -v " .  $version;
+
+		set_xml($ap, "timestamp", time);
+		set_xml($ap, "plugin", $plugin->name());
+	}
+
+	my $is_synchronous=$plugin->is_synchronous();
+
+	# Set a default of synchronous
+	if(!defined($is_synchronous)) {
+		$is_synchronous=1;
+	}
+	
+	# Never know what those crazy users will put in the conf files...
+	if($is_synchronous =~ m/yes/i) {
+		$is_synchronous=1;
+	}
+	if($is_synchronous =~ m/no/i) {
+		$is_synchronous=0;
+	}
+
+	$msg="Running plugin [" . $plugin->name() . "] which ";
+	if($is_synchronous!=0) {
+		# again we default to synchronous...
+		$msg.="synchronously";
+	} else {
+		$msg.="asynchronously";
+	}
+	$msg.=" executes: \n\t[$system]\n";
+	lprint(0, 1, $msg);
+
+	# open pipe
+	pipe(PARENT_RDR, CHILD_WTR);
+
+	# Get flags
+	my $flags=fcntl(PARENT_RDR, F_GETFL, 0);
+
+	# Add nonblock flag
+	$flags |= O_NONBLOCK;
+
+	# Set flags
+	fcntl(PARENT_RDR, F_SETFL, $flags);
+
+	my $ppid=$$;
+
+
+
+	#############################################################
+	# This is where all of the forking child/parent stuff happens
+	# for running the plugins
+	#############################################################
+
+	$pid=fork;
+	if(($is_synchronous!=0) && ($pid != 0)) {
+		########################
+		# This is the parent, running plugin synchronously
+		########################
+
+		# See if the plugin is taking longer than the timeout value, and kill it if needed
+		while(!$reaped) {
+			if(($timer >= $plugin->timeout) && ($plugin->timeout ne "0")){
+				kill_pid($pid);
+
+				$msg="Plugin runtime [" . $plugin->name() . "] was greater than [";
+				$msg.= $plugin->timeout . "]. Plugin killed early.\n";
+				$output=$msg;
+
+				lprint(1, 2, $msg);
+
+				# If it was killed early, we need to send this message 
+				if(defined($ap)) {
+					plugin_print($output, $plugin->plugindir(), $ap->ssid(), $ap->bssid());
+				}
+
+				return -1;
+			}
+
+			# reap the child
+			$kid=waitpid($pid, WNOHANG);
+
+			# Get exit value from the plugin so we can determine if was successful or not
+			if ($kid > 0) {
+				# get RC from child
+				$rc=<PARENT_RDR>;
+				$rc=-1 if(!defined($rc));
+
+				$reaped=1;
+				lprint(0, 3, "Plugin pid [$pid] name [" . $plugin->name() . "] exited, RC was [$rc]\n");
+
+			} elsif ($kid == -1) {
+				lprint(1, 1, "Plugin pid [$pid] name [" . $plugin->name() . "] has already been killed\n");
+				$reaped=1;
+				$rc=-1;
+
+			} else {
+				sleep 1;
+				$timer++;
+			}
+		}
+	} elsif ($pid != 0) {
+
+		######################################################################
+		# This is the parent.  This is for asynchronous plugin/hook runing...
+		# In this case we don't care about the output of the plugin
+		######################################################################
+
+
+		# This is so we can cleap up after the children later...
+		push(@async_pids, $pid);
+
+		if(defined($ap)) {
+			plugin_print(" [*] Plugin " . $plugin->name() . " was run asynchronously (so no output)\n", $plugin->plugindir(), $ap->ssid(), $ap->bssid());
+		}
+
+		# Set the return code to '0' because we're not actually getting it from the client.
+		# Note that this means that you can't change the runlevel from a asynchronous plugin
+		$rc=0;
+
+	} else {
+
+		########################
+		# This is the child
+		########################
+
+		$SIG{"INT"} = 'DEFAULT';
+		setpgrp($$, $ppid);
+		
+		# This is the fifo we'll send the plugin output to while the plugin is running
+		my $plugin_out;
+		if($interface ne "none") {
+			$plugin_out=$outputdir . "/" . $interface;
+
+		} else {
+
+			# Still need to find out where to log non-ap plugin output
+			$plugin_out="/dev/null";
+		}
+
+		if (! -w $plugin_out) {
+			lprint(2, 0, "Can't write to plugin output file [$plugin_out], plugin output will not by shown dynamically\n");
+			$plugin_out="/dev/null";
+		}
+
+		# Get and set the environment variables that come from the plugin config
+		my $envref=$plugin->getpluginenv();
+		foreach(keys %{$envref}) {
+			$ENV{$_}=$plugin->getpluginenv($_);
+		}
+		
+		# Add some additional things in the environment
+		$ENV{WICRAWL_PCAPFILE}="$outputdir/wicrawl_pcap-$sessionid-$run.cap";
+
+		# We send this so the plugin can see what event level it is in since
+		# a plugin can be run from multiple event levels
+		$ENV{WICRAWL_EVENTLVL}=$eventlvl_name;
+
+		if(defined($ap)) { 
+			# Add the channel
+			$ENV{WICRAWL_CHANNEL}=$ap->channel();
+		}
+
+		#####################################
+		# Open logging and execute the plugin
+		#####################################
+
+		open(PLUGIN, "$system|") || warn " [!] Couldn't open pipe to [$system]";
+		# We shouldn't have to lock this since only one process will be writing to a given card output file
+		open(PLUGINOUT, ">>$plugin_out") || warn " [!] Couldn't open plugin output [$plugin_out]\n";
+
+		# Just write a seperation line between plugins
+		my $separator="\n" . '*'x35 . " Starting new plugin " . '*'x35 . "\n\n";
+		syswrite(PLUGINOUT, $separator);
+		
+		# Using readline/syswrite to avoid buffering (so we can get dynamic output from the plugins)
+		while(readline(PLUGIN)) {
+			$output.=$_;
+			syswrite(PLUGINOUT, $_);
+		}
+
+		close(PLUGINOUT) || warn " [!] Can't close plugin ouput [$plugin_out]\n";
+		# We don't check the return value here because close() 
+		# returns the exit status of the piped program
+		close(PLUGIN);
+
+		my $rc=$? >> 8;
+
+		# The parent reader might not exist if the parent went off to work...
+		if($is_synchronous!=0) {
+			# Tell the parents how you did at school today
+			print CHILD_WTR $rc;
+		}
+
+		# TODO find a place to log plugin data not associated with a AP
+		if(defined($ap)) {
+			plugin_print($output, $plugin->plugindir(), $ap->ssid(), $ap->bssid());
+		}
+
+		exit 0;
+	}
+
+	return $rc;
+}
+#######################################################################
+# function set_xml - persist data back to XML file
+# 	Arugments: &$ap, $field, $value
+#       The AP reference is the one that you want to update
+#       field and value is the tag, and the value you want to set
+#		Returns:  0
+####################
+sub set_xml() {
+	my $ap=shift(@_);
+	my $field=shift(@_);
+	my $value=shift(@_);
+	my $XML;  my $xmlref;  my $msg;
+
+	$XML = XML::Smart->new($apcoredb);
+	if($cutroot) {
+		$XML = $XML->cut_root;
+	}
+
+	foreach(@{$XML->{"wireless-network"}}) {
+		$xmlref=$_;
+		if(($xmlref->{SSID} eq $ap->ssid()) && ($xmlref->{BSSID} eq $ap->bssid())) {
+			$xmlref->{$field}=$value;
+			$msg="Updated XML for AP [" . $ap->ssid . ":" . $ap->bssid;
+			$msg.="] field [$field] value [$value]\n";
+			lprint(0, 3, $msg);
+			last;
+		}
+	}
+
+
+	# flock needs a FH 
+	open(XML, $apcoredb) || die " [!!] Can't open $apcoredb\n";
+	flock(XML, LOCK_EX);
+	$XML->save($apcoredb);
+	flock(XML, LOCK_UN);
+	close(XML) || die " [!!] Can't close $apcoredb\n";
+
+	return 0;
+}
+#######################################################################
+# function get_xml - get fields from XML
+# 	Arugments: &$ap, $field
+#       The AP reference is the one that you want to get updated
+#       info from 
+#		Returns:  0
+####################
+sub get_xml() {
+	my $ap=shift(@_);
+	my $field=shift(@_);
+	my $value="";
+
+	my $XML;  my $xmlref;  my $msg;
+
+	$XML = XML::Smart->new($apcoredb);
+	if($cutroot) {
+		$XML = $XML->cut_root;
+	}
+
+	foreach(@{$XML->{"wireless-network"}}) {
+		$xmlref=$_;
+		if(($xmlref->{SSID} eq $ap->ssid()) && ($xmlref->{BSSID} eq $ap->bssid())) {
+			$value=$xmlref->{$field};
+			$msg="Got data for [" . $ap->ssid . ":" . $ap->bssid;
+			$msg.="] from XML, field [$field] is value [$value]\n";
+			lprint(0, 3, $msg);
+			last;
+		}
+	}
+
+	return $value;
+}
+#######################################################################
+# function start_ipc - Start the IPC process up
+# 	Arugments: ??
+#		Returns: 
+####################
+sub start_ipc {
+	my $apmembers="ssid bssid time packets plugin event ";
+	$apmembers.="timestamp encryption power channel latitude longitude";
+	my $msgtype;
+	my @found;
+
+	# Create the FIFO for IPC
+	if (! -p $fifo) {
+		unlink $fifo if (-e $fifo);
+		lprint(0,2, "Creating fifo file [$fifo] for IPC process\n");
+		system('mknod', $fifo, 'p') && die " [!!] Can't mknod [$fifo]:\n\t$!";
+		my $mode=0700;
+		chmod $mode, $fifo;
+	}
+
+	if (($child=fork)!=0) {
+		# This is the parent;
+		lprint(1,2, "IPC process [$child] spawned\n");
+		$ipcpid=$child;
+		return 0;
+
+	} elsif(!defined($child)) {
+		lprint(2, 1, "Can't fork Child\n");
+		exit 1;
+
+	} else {
+		# This is the child, make IPC stuff happen here.
+
+		# reset signal handler
+ 		$SIG{'INT'} = 'DEFAULT';
+		setpgrp($$, $$);
+
+		while(1) {
+			# Loop over it and update xml
+			open(IPC, "$fifo") || die " [!!] Can't open fifo [$fifo]:\n\t$!\n";
+
+			# Get flags
+			my $flags=fcntl(IPC, F_GETFL, 0);
+
+			# Add nonblock flag
+			$flags |= O_NONBLOCK;
+
+			# Set flags
+			fcntl(IPC, F_SETFL, $flags);
+
+			foreach(<IPC>) {
+				my $message=$_;
+				chomp($message);
+				my $missing="";
+				my $ap;
+				my $skip_ap=0;
+
+				# Get the message type (new|update)
+				$message=~s/^(.*?)\|(.*)$/$2/;
+				my $msgtype=$1;
+
+				# Do everything common between the message types
+				lprint(0,3, "IPC: Got [$msgtype] message\n");
+				lprint(0,3, "IPC Message is [$message]\n");
+				my @pairs=split(/\|/, $message);
+				chomp(@pairs);
+				$ap=AccessPoint->new();
+
+				foreach my $pair (@pairs) {
+					next if($pair eq "");
+					$pair=~m/(^.*):(.*$)/;
+					my $key=$1;
+					my $value=$2;
+
+					if((!defined($key)) || (!defined($value))) {
+						lprint(0, 3, "Got bad data pair from IPC\n");
+						$skip_ap=1;
+						last;
+					}
+
+					$value=decode_base64($value);
+
+					if($apmembers!~m/\b$key\b/) {
+						lprint(0, 3, "Key [$key] does not appear to be valid (from IPC)\n");
+						$skip_ap=1;
+						last;
+					}
+
+					# need to filter some SSIDs
+					if($key =~ m/\bssid\b/g) {
+
+						# Here are some SSID's we think are invalid.
+						# Please let us know if you think otherwise...
+						if ($value =~ /[^\w\s,-_\.\^!#\{\[\]\}]/) {
+							my $msg="Skipping AP SSID [" . $value . "] for bad characters\n";
+							$msg.="\tIf you think these are valid, please contact the developers\n";
+							$msg.="\tso we can change the filters\n";
+							lprint(2,1, $msg);
+							$skip_ap=1;
+							last;
+						}
+
+					}
+
+
+					# unpack binary data if it's the bssid
+					if($key=~m/bssid/i) {
+						$value=unpack("H12", $value);
+						$value=~s/(..\B)/$1:/g
+					}
+
+					# unpack channel
+					if($key=~m/channel/i) {
+						$value=unpack("C", $value);
+					}
+
+					$ap->$key($value);
+				}
+
+				next if ($skip_ap == 1);
+
+				if($msgtype eq "new") {
+
+					# Set to '0' if channel is not defined
+					if(!defined($ap->channel)) {
+						$ap->channel(0);
+					}
+
+					my @mandatory=("ssid", "bssid", "encryption");
+
+					# Check for missing pieces
+					foreach my $item (@mandatory) {
+						if(!defined($ap->$item)) {
+							$missing.="\t  [$item] is not defined\n";
+						}
+					}
+
+					if(($missing ne "") || (!defined($ap))) {
+						my $msg="IPC message type [new] did not receive enough parameters\n";	
+						$msg.="\tNew message requires ssid, bssid, and encryption\n";
+						$msg.="\tMissing parameters are:\n";
+						$msg.=$missing . "\n";
+						lprint(0, 3, $msg);
+						undef($ap);
+						next;
+					}
+
+					# Check to see if we've seen this before
+					my $was_found=0;
+					foreach my $bssid_c (@found) {
+						$was_found=1 if($bssid_c eq $ap->bssid());
+						last if($was_found);
+					}
+					
+					if ($was_found) {
+						undef($ap); 
+					} else {
+						push(@found, $ap->bssid());
+					}
+
+				} elsif ($msgtype eq "update") {
+
+					if(!defined($ap->bssid)) {
+						my $msg="IPC message type [update] did not receive enough parameters\n";	
+						$msg.="\tUpdate message requires bssid\n";
+						lprint(0, 3, $msg);
+						undef($ap);
+					}
+
+				} else {
+					lprint(1, 3, "IPC Message received but not understood\n\t[$message]\n");
+					next;
+				}
+
+				if(defined($ap)) {
+
+					my $ssid_match=0;
+					my $bssid_match=0;
+					# This gets set below if we are filtering on anything
+					my $filtered=0;
+
+					# This is the text box SSID/BSSID filter
+					# This is filtered *with* start/end anchors so what is typed in the text box
+					# is the full PCRE used to match against.
+					# Note that the same filter is against both the BSSID and the SSID
+					if((defined($filter)) && ($filter ne "")) {
+						$filtered=1;
+						shift(@filters);
+						
+						if(($ap->ssid =~ /$filter/) || ($ap->bssid =~ /$filter/i)) {
+							$ssid_match=1;
+						}
+					}
+
+					# This is the SSID/BSSID filter list from the file
+					# This is filtered *with* start/end anchors so when you have a list of SSID/BSSIDs
+					# that a substring match isn't found accidentally.  If a substring match is required, 
+					# you can always just put .*foo.* as your filter
+					if((@filters) && (@filters > 0)) {
+						$filtered=1;
+
+						foreach my $tmpfilter (@filters) {
+							if(($ap->ssid =~ /^$tmpfilter$/) || ($ap->bssid =~ /^$tmpfilter$/i))  {
+								$bssid_match=1;
+								last;
+							}
+						}
+					}
+
+					# Don't schedule since it didn't match anything
+					if(($filtered==1) && ($ssid_match==0) && ($bssid_match==0)) {
+						lprint(0, 2, "This AP [" . $ap->ssid . "] doesn't match your filter of [$filter]\n");
+						next;
+					}
+
+					xmlupdate($ap, $msgtype);
+
+					# Have to make sure that the new AP is in the database before we
+					# run hooks on it because the hooks might send an "update" IPC
+					# message on that same AP.
+					run_hooks($ap, "discovery") if($msgtype eq "new");
+				}
+
+			} # end IPC messaging loop
+
+			# Should only get here if the queue is empty, so we'll sleep for a short bit.
+			usleep(50);
+		} 
+
+		# Shouldn't get here
+		lprint(2,1, "IPC Broken pipe. Exiting.\n");
+		exit 1;
+	}
+}
+#######################################################################
+# function run_hooks
+# 	Arugments: $AP reference, hook name as a string
+#		Returns: 
+####################
+sub run_hooks {
+
+	my $ap=shift(@_);
+	my $hook_event=shift(@_);
+	my $pid;
+	my $hooksref;
+
+	# populate the queue for the given event level
+	# Get the event level number from %hook_events
+	if(defined($hooks_q[$hook_events{$hook_event}])) {
+		$hooksref=$hooks_q[$hook_events{$hook_event}];
+	} else {
+		lprint(0, 3, "Was running hooks for event level [$hook_event], but none are configured\n");
+		return 0;
+	}
+
+	lprint(0, 2, "Running hooks for event [$hook_event]\n");
+
+	# Run each plugin, @{$hooksref} should already be 
+	# in order according to runlevel
+	foreach my $plugin (@{$hooksref}) {
+		if($ap eq "") {
+			$ap=undef;
+		}
+
+		run_plugin($ap, $plugin, $hook_event);
+	}
+
+	return 0;
+}
+#######################################################################
+# function run_queue - Actually run the plugin queue
+# 	Arugments: ??
+#		Returns: 
+####################
+sub run_queue {
+	my $runlen=shift(@_);
+
+	foreach(@aps) {
+		my $ap=$_; 
+		my $eventlvl=0;
+		my $msg;
+
+		# We check here to see if we have any cards that we can schedule
+		# If so, use it, otherwise, we relax for a bit
+		while(($interface=check_cards()) eq "0") {
+			sleep 1;
+		}
+
+		if (($child=fork)!=0) {
+			# This is the parent;
+			$msg="Forked [$child] to manage [" . $ap->ssid . "] with [$interface]\n";
+			lprint (0, 2, $msg);
+			$cards{"$interface"}=$child;
+			next;
+		} elsif(!defined($child)) {
+			lprint(2, 1, "Can't fork Child");
+			exit 1;
+		}
+		
+		# reset signal handler
+ 		$SIG{'INT'} = 'DEFAULT';
+		setpgrp($$, $$);
+
+		run_hooks($ap, "pre-ap");
+		run_ap($ap, $runlen);	
+		run_hooks($ap, "post-ap");
+
+		# This should be a forked child here, so we exit.	
+		$msg="Child managing [" . $ap->ssid . "] with [$interface] exiting now...\n";
+		lprint (0, 2, $msg);
+		exit 0;
+	}
+
+	wait_children(0);
+	return 0;
+}
+#######################################################################
+# function schedule -- Re-order the plugin queue depending on what 
+#                      scheduling algorithm is set in the profile
+#                      valid algorithms are:
+#                        first/active/signal/all
+# 	Arugments: @arr of AccessPoint.pm's
+#		Returns: sorted @arr of AP.pm's
+####################
+sub schedule {
+
+	my $apref = shift(@_);
+	my $sched_type=$profile->scheduling();
+
+	lprint(0,3,"Scheduling APs with [$sched_type] algorithm\n");
+
+
+	if ($sched_type =~ m/first/i) {
+		# scheduling type of "first" is basically no type, this just uses
+		# the first APs that it sees in order of what it sees them in
+
+		return $apref;
+
+	} elsif($sched_type =~ m/active/i) {
+		# This schedules based on the most active APs, the highest
+		# packet count wins here.  (sort decending...)
+
+		return sort {$b->packets() <=> $a->packets()} @{$apref};
+
+	} elsif($sched_type =~ m/signal/i) {
+		# This tries to schedule based on the signal strength
+		# (sort decending...)
+
+		return sort {$b->power() <=> $a->power()} @{$apref};
+
+	} elsif($sched_type =~ m/all/i) {
+		# no change for type "all"
+
+		return $apref;
+
+	} else {
+		lprint(0,3, "Invalid scheduling algorithm specified, using [first]");
+
+		return $apref;
+	}
+
+	return 0;
+}
+#######################################################################
+# function get_eventlvl_name - Get the text event level from the event level num
+#		Arguments:  int event level number
+#   Returns: string of event level name
+####################
+sub get_eventlvl_name {
+	my $event_num=shift(@_);
+	
+	# loop through each value to see if it's the right one
+	foreach my $value (values %hook_events) {
+		return $hook_events{$value} if ($event_num eq $value);
+	}
+
+	# return unknown if we haven't found it already
+	return "UnknownEventName";
+}
+#######################################################################
+# function kill_pid - kill the given pid.
+#		Arguments:  pid
+####################
+sub kill_pid() {
+	my $child=shift(@_);
+
+	my $have_child=1;
+	my $count=0;
+	while($have_child) {
+		my $kid=waitpid($child, WNOHANG);
+		last if($kid > 0);
+
+		$child="-" . $child;
+		$count=kill(2, $child);
+		if($count==0) {
+			# process is gone
+			$have_child=0;
+			lprint(0, 2, "Child [$child] was killed\n");
+		}
+		sleep 1;
+	}
+
+	return 0;
+}
+#######################################################################
+# function cleanup - run to cleanup on sigint, etc
+####################
+sub cleanup() {
+	lprint(2, 1, "Interrupt received, cleaning up\n");
+	wait_children(1);
+	unlink($fifo);
+	foreach my $key (keys %cards) { 
+		if(-f "$outputdir/$key") {
+			unlink("$outputdir/$key");
+		}
+	}
+	lprint(1, 1, "Wicrawl Done.\n");
+	exit 0;
+}
+#######################################################################
+# function import_config
+####################
+sub import_config() {
+
+	# parameters that we could get from the config
+	# TODO make this not suck and probably read real/normal config file format
+	use vars qw($enableMadwifiHack $nickname);
+	
+	if(! -r $config_file) {
+		if(-r "$basedir/wicrawl.conf") {
+			$config_file="$basedir/wicrawl.conf";
+		} else {
+			print("  [!] Can't open config file [$config_file]\n");
+			return 0;
+		}
+	}
+
+	print("  [*] Loading Config from [$config_file]\n");
+
+	my $return;
+	unless ($return = do $config_file) {
+		warn "  [!] Couldn't parse $config_file: $@" if $@;
+		warn "  [!] Couldn't run $config_file: $!"   unless defined $return;
+		warn "  [!] Couldn't run $config_file"       unless $return;
+	}
+	
+	if (defined($enableMadwifiHack)) {
+		$madwifihack=$enableMadwifiHack;
+		print "DEBUG: setting madwifihack to $madwifihack\n";
+	}
+	if (defined($nickname)) {
+		$nick=$nickname
+	}
+
+	return 0;
+
+}
+# --------------------------------------------------------------------------------
+# Function usage
+# ----------------------
+sub usage {
+	print "wicrawl version:$version\n\n";
+  print "\nusage: $0 -i <interfaces> [options]\n";
+  print "\t-i <interfaces to use> comma delimited\n";
+	print "\t   The first listed interface will be used for discovery\n";
+  print "\t-d <output directory>  default \"./output\"\n";
+  print "\t-f <output file name>  default \"wicrawl_discovery-{session id}.xml\"\n";
+  print "\t-F <bssid/ssid filter> default \".*\"\n";
+  print "\t-k (kill discovery engine between runs)\n";
+  print "\t-K (Don't run discovery, but read IPC so discovery can be remote)\n";
+  print "\t-m (enable mad-wifi driver hack for discovery)\n";
+  print "\t-n <wi-fi nickname>    default \"wicrawler\"\n";
+  print "\t-p <profile name>      default \"all\"\n";
+  print "\t-P <plugin output>     default \"wicrawl_plugins-output-{session id}.xml\"\n";
+  print "\t-s <session id>        default is seconds since epoch\n";
+  print "\t-t <discovery timeout> default is \"$discovery_timeout\"\n";
+  print "\t-v <verbosity>         default \"1\"\n";
+  print "\t   verbosity levels are 0 - 3\n";
+  print "\t-w write pcap dump of traffic default \"0\"\n";
+  print "\t-D turn debugging verbosity on\n";
+	exit 1;
+}
+#######################################################################
+#######################################################################
+# End functions
+#######################################################################
+#######################################################################
+
+lprint(1, 1, "Starting wicrawl version [$version]\n");
+lprint(1, 2, "Logging output to        [$logfile]\n");
+lprint(1, 2, "Verbosity                [$verbosity]\n");
+lprint(1, 2, "Session ID               [$sessionid]\n");
+lprint(1, 2, "Discovery log file is\n\t[$apcoredb]\n");
+lprint(1, 2, "Plugin ouput file is \n\t[$plugindb]\n");
+
+# multiple gateways are screwy if this is not set to '0'
+my $rp_filter="/proc/sys/net/ipv4/conf/all/rp_filter";
+if (-f $rp_filter) {
+
+	open(RPF, "+>$rp_filter") || die " [!!] Can't open $rp_filter\n\t$!";
+	my $out=<RPF>;
+	chomp($out);
+
+	if($out ne "0") {
+		lprint(0, 1, "Changing rp_filter to \"0\"\n");
+		print RPF "0";
+	}
+
+	close(RPF) || die " [!!] Can't close $rp_filter\n\t$!";
+
+} else {
+	lprint(2, 1, "Can't find rp_filter file, is this Linux?\n");
+}
+
+if(((!defined($filter)) || ($filter eq "")) && (!@filters)) {
+	lprint (1,1, "Warning: no SSID/BSSID filter set, please limit your profile/plugins to safe plugins\n");
+}
+
+$SIG{'INT'}= \&cleanup;
+
+# Some global stuff
+$profile=get_profile();
+
+# Populates public @plugins and @hooks
+read_plugins();
+
+# Reads from the global @plugins and @hooks set above
+@plugin_q=get_plugin_queue();
+@hooks_q=get_hook_queue();
+
+start_ipc();
+
+while() {
+	discover($disc_iface);
+	@aps=get_ap();
+	sleep $sleep;
+
+	my $runlennum=0;
+	foreach(@plugin_runlengths) {
+		my $runlen=$_;
+
+		next if ($profile->runlengths !~ m/\b$runlen\b/);
+		lprint(1, 1, "Running plugins with runlength [$runlen]\n");
+		run_queue($runlennum);
+
+	} continue { 
+		$runlennum++ 
+	}
+
+	lprint(1, 1, "Wicrawl run [$run] finished, starting next run\n");
+	$run++;
+}
+
+exit 0;
+
+# vim:ts=2:sw=2:sts=0:si

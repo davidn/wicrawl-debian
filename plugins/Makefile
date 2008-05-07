@@ -1,23 +1,12 @@
-include ../config.mk
+build_files = cowpatty-wpa-psk-bruteforce/cowpatty/all cowpatty-wpa-psk-bruteforce/cowpatty-fpga/all cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/picod cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/picoc cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod/listflash pickupline/pul/pul
 
-all: clean wicrawl
+all: $(build_files)
 
-AIRCRACK_MK=Makefile
-ifeq ($(OS), Darwin)
-	AIRCRACK_MK=Makefile.osx
-endif
-
-wicrawl: 
-	@cd aircrack-wep-cracking/aircrack-ng-0.9.1 && $(MAKE) -f $(AIRCRACK_MK)
-	@cd cowpatty-wpa-psk-bruteforce/cowpatty && $(MAKE)
-	@cd cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod && $(MAKE)
-	@cd cowpatty-wpa-psk-bruteforce/cowpatty-fpga && $(MAKE)
-	@cd weplab-bruteforce/weplab-0.1.5 && ./configure && $(MAKE)
-	@cd pickupline/pul && $(MAKE)
+$(build_files):
+	cd `dirname $@` && $(MAKE) `basename $@`
 
 clean:
-	@cd aircrack-wep-cracking/aircrack-ng-0.9.1 && $(MAKE) clean
-	@cd cowpatty-wpa-psk-bruteforce/cowpatty && $(MAKE) clean
-	@cd cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod && $(MAKE) clean
-	@cd cowpatty-wpa-psk-bruteforce/cowpatty-fpga && $(MAKE) clean
-	@cd pickupline/pul && $(MAKE) clean
+	cd cowpatty-wpa-psk-bruteforce/cowpatty && $(MAKE) clean
+	cd cowpatty-wpa-psk-bruteforce/cowpatty-fpga/picod && $(MAKE) clean
+	cd cowpatty-wpa-psk-bruteforce/cowpatty-fpga && $(MAKE) clean
+	cd pickupline/pul && $(MAKE) clean

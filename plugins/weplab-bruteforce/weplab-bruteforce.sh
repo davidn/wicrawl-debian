@@ -39,8 +39,7 @@ john="$john -incremental -stdout"
 
 echo "  [*] Weplab Dictionary Brute force plugin";
 
-basedir=$( dirname $0 )
-weplab="$basedir/weplab-0.1.5/weplab"
+weplab="/usr/bin/weplab"
 
 if [ ! -x "$weplab" ] ; then
 	echo "  [!] Weplab binary [$weplab] wasn't found, did you compile wicrawl?"

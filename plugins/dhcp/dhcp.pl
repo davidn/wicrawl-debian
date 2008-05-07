@@ -55,12 +55,10 @@ my $ip;
 my $dhcp;
 my $timeout = 30;
 
-my ($basedir, undef) = split(/\/\//, dirname $0);
-
 print "  [*] Running DHCP...\n";
 # check whether dhcp client exists
-if(-e "$basedir/util/dhcp/dhclient") {	
-	$dhcp = `$basedir/util/dhcp/dhclient $interface 2>&1`;
+if(-e "/sbin/dhclient") {	
+	$dhcp = `/sbin/dhclient $interface 2>&1`;
 		if($dhcp =~ /(bound to )(\d+\.\d+\.\d+\.\d+)/) {
 			print "  [*] Your ip is: $2 on interface: $interface\n";
 			$rc = 1;
