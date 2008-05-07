@@ -3,7 +3,7 @@ package UI::GTKExecute;
 use POSIX ":sys_wait_h";
 
 # Set basedir here so we can set the lib path dynamically.
-my $basedir="/usr/local/wicrawl/";
+my $basedir="@datadir@";
 
 my $wicrawl = "$basedir/plugins/plugin-engine";
 

@@ -5,7 +5,7 @@ use Fcntl;
 
 # Set basedir here so we can set the lib path dynamically.
 BEGIN { 
-	$basedir="/usr/local/wicrawl/";
+	$basedir="@datadir@";
 }
 my $wicrawl = "$basedir/plugins/plugin-engine";
 

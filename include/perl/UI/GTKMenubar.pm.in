@@ -3,7 +3,7 @@ package UI::GTKMenubar;
 use UI::GTKExecute;
 use Data::Dumper;
 
-my $basedir = "/usr/local/wicrawl";
+my $basedir = "@datadir@";
 my $outputdir = "/var/log/wicrawl/";
 my $fifo="$outputdir/ipc";
 

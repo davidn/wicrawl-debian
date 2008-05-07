@@ -11,7 +11,7 @@ use MIME::Base64;
 use UI::COutput;
 use UI::GTKOutput;
 
-my $basedir="/usr/local/wicrawl";
+my $basedir="@datadir@";
 
 # Wicrawl variables
 my $cutroot = 1;
