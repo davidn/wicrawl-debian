@@ -18,7 +18,11 @@ edit = sed \
        -e 's|@datadir[@]|$(pkgdatadir)|g' \
        -e 's|@prefix[@]|$(prefix)|g'
 
-all: util/libutil.a discovery/apcore discovery/hashtest $(edit_files)
+all: util/libutil.a discovery/apcore discovery/hashtest $(edit_files) plugins
+
+plugins:
+	cd plugins && make all
+
 util/libutil.a: util/.deps
 	cd util && make libutil.a
 
@@ -37,6 +41,7 @@ discovery/.deps:
 clean:
 	cd util && make clean
 	cd discovery && make clean
+	cd plugins && make clean
 	rm $(edit_files)
 
 $(edit_files): Makefile $@
@@ -59,7 +64,9 @@ install: all
 	$(install) -D ui profiles hooks $(pkgdatadir)
 	rm $(pkgdatadir)/ui/wicrawl*.in
 	$(install) -D doc $(pkgdocdir)
-	$(install) -D discovery plugins utils $(pkglibdir)
+	$(install) -D utils/libutil.la utils/scripts $(pkglibdir)/utils
+	$(install) -D discovery/hashtest discover/apcore $(pkglibdir)/discovery
+	$(install) -D 
 
 install-old:
 	# Directories, perl modules, and conf files
