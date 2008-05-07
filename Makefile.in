@@ -38,11 +38,14 @@ discovery/hashtest: discovery/.deps
 discovery/.deps:
 	cd discovery && make .deps
 
+distclean: clean
+	-rm Makefile configure config.status config.log
+	-rm -r autom4te.cache
 clean:
 	cd util && make clean
 	cd discovery && make clean
 	cd plugins && make clean
-	rm $(edit_files)
+	-rm $(edit_files)
 
 $(edit_files): Makefile $@
 	$(edit) '$@.in' > $@
@@ -65,7 +68,7 @@ install: all
 	$(install) -D discovery/hashtest discover/apcore $(pkglibdir)/discovery
 	$(install) -D 
 
-.PHONY: all clean plugins install util/.deps discovery/.deps
+.PHONY: all distclean clean plugins install util/.deps discovery/.deps
 install-old:
 	# Directories, perl modules, and conf files
 	@$(INSTALL) -d $(INSTALLDIR)/include/perl
