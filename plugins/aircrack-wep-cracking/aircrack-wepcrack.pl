@@ -55,8 +55,7 @@ $version =    $opt_v if(defined $opt_v);
 
 
 my $pcapfile=$ENV{'WICRAWL_PCAPFILE'};
-my $basedir=dirname($0);
-my $aircrackdir=$basedir . "/aircrack-ng-0.9.1";
+my $aircrackdir= "/usr/sbin";
 my $aircrack=$aircrackdir . "/aircrack-ng";
 my $airmon=$aircrackdir . "/airmon-ng";
 my $aireplay=$aircrackdir . "/aireplay-ng";
