@@ -12,11 +12,12 @@ use UI::COutput;
 use UI::GTKOutput;
 
 my $basedir="@datadir@";
+my $libdir="@libdir@";
 
 # Wicrawl variables
 my $cutroot = 1;
 my $guitype = 'gtk';
-my $wicrawl = "$basedir/plugins/plugin-engine";
+my $wicrawl = "$libdir/plugins/plugin-engine";
 
 # Use external discovery interface
 my $external = 0;
@@ -27,7 +28,7 @@ my $default_profile="default";
 my $profileext=".conf";
 
 # Location of plugins
-my $plugins_dir = "$basedir/plugins";
+my $plugins_dir = "$libdir/plugins";
 
 # Location of databases
 my $outputdir = "/var/log/wicrawl";
@@ -116,7 +117,7 @@ sub generate_command {
 ###################
 sub get_interfaces {
 	#print "Finding Available Interfaces\n";
-	my @args=("$basedir/discovery/apcore", "-l");
+	my @args=("$libdir/discovery/apcore", "-l");
 	
 	my %interfaces;
 
@@ -389,12 +390,12 @@ sub external {
 #	Returns: none
 ###################
 sub find_plugins {	
-	my $plugins_dir = "$basedir/plugins";
+	my $plugins_dir = "$libdir/plugins";
 	my @plugins;
 	
 	opendir DIR, $plugins_dir or lprint(1,0,"Could not open $plugins_dir");
 	while (my $plugin_name = readdir DIR) {
-		next unless (-e "$basedir/plugins/$plugin_name/plugin.conf");
+		next unless (-e "$libdir/plugins/$plugin_name/plugin.conf");
 		push @plugins, $plugin_name;
 		
 	}

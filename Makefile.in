@@ -19,21 +19,31 @@ edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses plugins/plugin-engine i
 
 edit = sed \
        -e 's|@datadir[@]|$(pkgdatadir)|g' \
-       -e 's|@prefix[@]|$(prefix)|g'
+       -e 's|@prefix[@]|$(prefix)|g' \
+       -e 's|@libdir[@]|$(pkglibdir)|g'
 
 all: discovery/apcore discovery/hashtest $(edit_files) plugins
 
-plugins:
-	cd plugins && make all
+plugins: plugins-stamp
 
-discovery/apcore: discovery/.deps
+plugins-stamp:
+	cd plugins && make all
+	touch plugins-stamp
+
+discovery/apcore: discovery/.deps util/libutil.a
 	cd discovery && make apcore
 
 discovery/hashtest: discovery/.deps
 	cd discovery && make hashtest
 
-discovery/.deps:
+discovery/.deps: discovery/*.c
 	cd discovery && make .deps
+
+util/libutil.a: util/.deps
+	cd util && make libutil.a
+
+util/.deps: include/wicrawl.h util/errlib.c util/util.c util/associated.c
+	cd util && make .deps
 
 distclean: clean
 	-rm Makefile configure config.status config.log
@@ -41,7 +51,9 @@ distclean: clean
 clean:
 	cd discovery && make clean
 	cd plugins && make clean
+	cd util && make clean
 	-rm $(edit_files)
+	-rm plugins-stamp
 
 $(edit_files): Makefile $@
 	$(edit) '$@.in' > $@
@@ -78,6 +90,6 @@ install: all
 	for plugin in `find plugins ! -iname Makefile ! -iname *.c ! -iname *.o ! -iname *.dump ! -iname *.h ! -iname README ! -iname CONTACTS ! -iname LICENCE ! -iname FAQ ! -iname INSTALL ! -iname COPYING ! -iname TODO ! -iname CHANGELOG ! -iname AUTHORS ! -iname WISHLIST ! -iname VERSION ! -iname HISTORY`; do \
 		install -D $${plugin} $(pkglibdir)/$${plugin} ; \
 	done
-	$(install) -D ui/wicrawl $(bindir)/wicrawl
+	$(install) -D ui/wicrawl $(sbindir)/wicrawl
 
-.PHONY: all distclean clean plugins install discovery/.deps
+.PHONY: all distclean clean plugins install

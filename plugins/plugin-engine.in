@@ -62,15 +62,17 @@ my $silence_discovery=1;
 $|=1;
 
 my $basedir;
+my $libdir;
 
 # Set basedir here so we can set the lib path dynamically.
 BEGIN { 
-	$basedir="@@BASEDIR@@/";
+	$basedir="@datadir@";
+	$libdir="@libdir@";
 }
 
 my $child;
 my $filter_file;
-my $apcore="$basedir/discovery/apcore";
+my $apcore="$libdir/discovery/apcore";
 my $cutroot=1; # whether to cut the head in the xml file
 my $debug=0;
 my $run=0;
@@ -78,7 +80,7 @@ my $verbosity=1;
 my $pcapwrite=1;
 my $pluginext="plugin.conf";
 my $profileext=".conf";
-my $plugindir="$basedir/plugins";
+my $plugindir="$libdir/plugins";
 my $profiledir="$basedir/profiles";
 my $outputdir="/var/log/wicrawl";
 my $config_file="/etc/wicrawl/wicrawl.conf";
