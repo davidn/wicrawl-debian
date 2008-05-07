@@ -22,7 +22,9 @@ edit = sed \
        -e 's|@prefix[@]|$(prefix)|g' \
        -e 's|@libdir[@]|$(pkglibdir)|g'
 
-all: discovery/apcore discovery/hashtest $(edit_files) plugins
+all: not-plugins plugins
+
+not-plugins: discovery/apcore discovery/hashtest $(edit_files)
 
 plugins: plugins-stamp
 
@@ -92,4 +94,4 @@ install: all
 	done
 	$(install) -D ui/wicrawl $(sbindir)/wicrawl
 
-.PHONY: all distclean clean plugins install
+.PHONY: all not-plugins distclean clean plugins install
