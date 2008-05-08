@@ -3,7 +3,7 @@ Section: net
 Priority: extra
 Maintainer: David Newgas <david@newgas.net>
 Build-Depends: debhelper (>= 5), python-support, autotools-dev, libssl-dev, libpcap-dev
-Standards-Version: 3.7.2
+Standards-Version: 3.7.3
 
 Package: wicrawl
 Architecture: any
@@ -16,7 +16,7 @@ Description: a simple wi-fi (802.11x) Access Point auditor
  Plugins are implemented for existing common tools, and new plugins can be 
  written in any language. Wicrawl is able to use multiple cards.
  .
- This package contains the gtk+ interface.
+ This package contains the GTK+ interface.
 
 Package: wicrawl-plugins
 Architecture: any

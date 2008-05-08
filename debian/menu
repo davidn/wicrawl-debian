@@ -1,2 +1,2 @@
 ?package(wicrawl):needs="X11" section="Applications/Network/Monitoring"\
-  title="wicrawl" command="/usr/bin/su-to-root -X -c /usr/bin/wicrawl"
+  title="wicrawl" command="/usr/bin/su-to-root -X -c /usr/sbin/wicrawl"

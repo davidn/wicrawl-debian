@@ -24,9 +24,12 @@ edit = sed \
 
 all: not-plugins plugins
 
-not-plugins: discovery/apcore discovery/hashtest $(edit_files)
+not-plugins: discovery/apcore discovery/hashtest $(edit_files) doc/changelog
 
 plugins: plugins-stamp
+
+doc/changelog: doc/CHANGELOG
+	cp doc/CHANGELOG doc/changelog
 
 plugins-stamp:
 	cd plugins && make all

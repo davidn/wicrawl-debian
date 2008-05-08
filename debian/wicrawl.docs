@@ -1,9 +1,6 @@
-doc/BUILDING
-doc/CHANGELOG
+doc/changelog
 doc/FAQ
 doc/IPC2
-doc/LICENSE
 doc/README
 doc/README.developers
 doc/README.plugins
-doc/TODO

@@ -34,50 +34,33 @@ endif
 
 
 #Architecture 
-build: build-arch build-plugins
+build: build-arch
+	touch build
 
 build-arch: build-arch-stamp
 build-arch-stamp:  config.status
 
 	# Add here commands to compile the arch part of the package.
-	$(MAKE) not-plugins
-	touch $@
-
-build-plugins: build-plugins-stamp
-build-plugins-stamp:  config.status
-
-	# Add here commands to compile the plugins part of the package.
-	$(MAKE) plugins
+	$(MAKE) all
 	touch $@
 
 clean:
 	dh_testdir
 	dh_testroot
-	rm -f build-arch-stamp build-plugins-stamp 
+	rm -f build build-arch-stamp
 
 	# Add here commands to clean up after the build process.
-	$(MAKE) distclean
+	$(MAKE) clean
 	rm -f config.sub config.guess
 
 	dh_clean 
 
-install: install-plugins install-arch
-install-plugins: install-common
-	dh_testdir
-	dh_testroot
-	dh_clean -k -pwicrawl-plugins
-	dh_installdirs -pwicrawl-plugins
-	dh_install -pwicrawl-plugins
-
-install-arch: install-common
-	dh_testdir
-	dh_testroot
-	dh_clean -k -pwicrawl
-	dh_installdirs -pwicrawl
-	dh_install -pwicrawl
-
-install-common:
+install:
 	$(MAKE) prefix=$(CURDIR)/debian/tmp/usr install
+	dh_testdir
+	dh_testroot
+	#dh_clean -k -s
+	dh_install -s
 
 # Must not depend on anything. This is to be called by
 # binary-arch/binary-plugins
@@ -103,12 +86,11 @@ binary-common:
 	dh_builddeb
 
 # Build architecture pluginsendant packages using the common target.
-binary-plugins: build-plugins install-plugins
-	$(MAKE) -f debian/rules DH_OPTIONS=-pwicrawl-plugins binary-common
+binary-indep:
 
 # Build architecture dependant packages using the common target.
-binary-arch: build-arch install-arch
-	$(MAKE) -f debian/rules DH_OPTIONS=-pwicrawl binary-common
+binary-arch: build-arch install
+	$(MAKE) -f debian/rules DH_OPTIONS=-s binary-common
 
-binary: binary-arch binary-plugins
-.PHONY: build clean binary-plugins binary-arch binary install install-plugins install-arch install-common
+binary: binary-arch binary-indep
+.PHONY: build clean binary-indep binary-arch binary install
