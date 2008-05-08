@@ -1,2 +1,3 @@
+debian/tmp/usr/sbin/wicrawl
 debian/tmp/usr/share/wicrawl
 debian/tmp/usr/lib/wicrawl/discovery

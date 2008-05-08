@@ -76,13 +76,13 @@ include/perl/UI/GTKWarbar.pm: include/perl/UI/GTKWarbar.pm.in
 
 install: all
 	for file in `find ui -type f ! -iname *.in`; do \
-		$(install) -D $$file $(pkgdatadir)/$$file ;\
+		$(install) -Dm 0644 $$file $(pkgdatadir)/$$file ;\
 	done
 	for file in `find include/perl -type f ! -iname *.in`; do \
-		$(install) -D $$file $(pkgdatadir)/$$file ;\
+		$(install) -Dm 0644 $$file $(pkgdatadir)/$$file ;\
 	done
 	$(install) -d $(pkgdatadir)/profiles
-	$(install) profiles/*.conf $(pkgdatadir)/profiles
+	$(install) -m 0644 profiles/*.conf $(pkgdatadir)/profiles
 	for file in `find hooks -type f`; do \
 		$(install) -D $$file $(pkgdatadir)/$$file;\
 	done
@@ -93,7 +93,7 @@ install: all
 	$(install) -D discovery/hashtest $(pkglibdir)/discovery/hashtest
 	$(install) -D discovery/apcore $(pkglibdir)/discovery/apcore
 	for plugin in `find plugins ! -iname Makefile ! -iname *.c ! -iname *.o ! -iname *.dump ! -iname *.h ! -iname README ! -iname CONTACTS ! -iname LICENCE ! -iname FAQ ! -iname INSTALL ! -iname COPYING ! -iname TODO ! -iname CHANGELOG ! -iname AUTHORS ! -iname WISHLIST ! -iname VERSION ! -iname HISTORY`; do \
-		install -D $${plugin} $(pkglibdir)/$${plugin} ; \
+		install -Dm 0644 $${plugin} $(pkglibdir)/$${plugin} ; \
 	done
 	$(install) -D ui/wicrawl $(sbindir)/wicrawl
 
