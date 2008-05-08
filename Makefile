@@ -1,19 +1,19 @@
-install = @INSTALL@
+install = /usr/bin/install -c
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-datarootdir = @datarootdir@
-bindir = @bindir@
-sbindir = @sbindir@
-datadir = @datadir@
-docdir = @docdir@
-includedir = @includedir@
-libdir = @libdir@
+prefix = /usr/local
+exec_prefix = ${prefix}
+datarootdir = ${prefix}/share
+bindir = ${exec_prefix}/bin
+sbindir = ${exec_prefix}/sbin
+datadir = ${datarootdir}
+docdir = ${datarootdir}/doc/${PACKAGE_TARNAME}
+includedir = ${prefix}/include
+libdir = ${exec_prefix}/lib
 
-pkgdatadir = $(datadir)/@package@
-pkglibdir = $(libdir)/@package@
-pkgincludedir = $(includedir)/@package@
-pkgdocdir = $(docdir)/@package@
+pkgdatadir = $(datadir)/wicrawl
+pkglibdir = $(libdir)/wicrawl
+pkgincludedir = $(includedir)/wicrawl
+pkgdocdir = $(docdir)/wicrawl
 
 edit_files = ui/wicrawl ui/wicrawl-gtk ui/wicrawl-curses plugins/plugin-engine include/perl/UI/CExecute.pm include/perl/UI/Common.pm include/perl/UI/GTKExecute.pm include/perl/UI/GTKMenubar.pm include/perl/UI/GTKOutput.pm include/perl/UI/GTKWarbar.pm
 
