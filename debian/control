@@ -20,7 +20,7 @@ Description: a simple wi-fi (802.11x) Access Point auditor
 
 Package: wicrawl-plugins
 Architecture: any
-Depends:  ${python:Depends}, ${perl:Depends}, dhcp3-client
+Depends: ${shlibs:Depens}, ${python:Depends}, ${perl:Depends}, dhcp3-client
 Recommends: weblab, aircrack-ng
 Description: Documentation for wicrawl
  Wicrawl is a simple wi-fi (802.11x) Access Point auditor with a simple and 
