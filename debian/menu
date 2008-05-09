@@ -1,2 +1,3 @@
 ?package(wicrawl):needs="X11" section="Applications/Network/Monitoring"\
-  title="wicrawl" command="/usr/bin/su-to-root -X -c /usr/sbin/wicrawl"
+  title="wicrawl" icon="/usr/share/wicrawl/ui/pix/Mrl.jpg"\
+  command="/usr/bin/su-to-root -X -c /usr/sbin/wicrawl"
