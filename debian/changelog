@@ -1,6 +1,13 @@
-wicrawl (0.4a+CVS20080506-1) unstable; urgency=low
+wicrawl (0.4a+CVS20080506+david3-1) UNRELEASED; urgency=low
 
   * Initial release (Closes: #393610)
+    Debianised using dh_make.
+    Following changes made from upstream.
 
- -- David Newgas <david@newgas.net>  Tue, 06 May 2008 21:47:01 +0100
+  * Removed CVS conflict files.
+  * Build system replaced with autoconf based system.
+    This makes installation directories sane and configurable.
+  * Variable substitution in source files rewritten.
+  * Embedded aircrack, weplab and dhcp3-client removed.
 
+ -- David Newgas <david@newgas.net>  Fri, 09 May 2008 14:48:21 +0100
