@@ -73,13 +73,13 @@ include/perl/UI/GTKOutput.pm: include/perl/UI/GTKOutput.pm.in
 include/perl/UI/GTKWarbar.pm: include/perl/UI/GTKWarbar.pm.in
 
 install: all
-	for file in `find ui -type f ! -iname *.in`; do \
+	for file in `find ui -type f ! -iname \*.in`; do \
 		$(install) -Dm 0644 $$file $(pkgdatadir)/$$file ;\
 		if file $$file | grep executable ; then \
 			chmod 0755 $(pkgdatadir)/$$file ;\
 		fi \
 	done
-	for file in `find include/perl -type f ! -iname *.in`; do \
+	for file in `find include/perl -type f ! -iname \*.in`; do \
 		$(install) -Dm 0644 $$file $(pkgdatadir)/$$file ;\
 	done
 	$(install) -d $(pkgdatadir)/profiles
@@ -93,7 +93,7 @@ install: all
 	
 	$(install) -D discovery/hashtest $(pkglibdir)/discovery/hashtest
 	$(install) -D discovery/apcore $(pkglibdir)/discovery/apcore
-	for plugin in `find plugins ! -iname \*Makefile\* ! -iname *.c ! -iname *.o ! -iname *.dump ! -iname *.h ! -iname README ! -iname CONTACTS ! -iname LI[SC]EN[SC]E ! -iname FAQ ! -iname INSTALLI*N*G* ! -iname COPYING ! -iname TODO ! -iname CHANGELOG ! -iname AUTHORS ! -iname WISHLIST ! -iname VERSION ! -iname HISTORY`; do \
+	for plugin in `find plugins ! -iname \*Makefile\* ! -iname \*.c ! -iname \*.o ! -iname \*.dump ! -iname \*.h ! -iname README ! -iname CONTACTS ! -iname LI[SC]EN[SC]E ! -iname FAQ ! -iname INSTALLI\*N\*G\* ! -iname COPYING ! -iname TODO ! -iname CHANGELOG ! -iname AUTHORS ! -iname WISHLIST ! -iname VERSION ! -iname HISTORY`; do \
 		install -Dm 0644 $${plugin} $(pkglibdir)/$${plugin} ; \
 		if file $${plugin} | grep executable ; then \
 			chmod 0755 $(pkglibdir)/$${plugin} ; \
