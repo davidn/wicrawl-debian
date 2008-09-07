@@ -60,6 +60,7 @@ clean:
 	-rm $(edit_files)
 	-rm config.status config.log
 	-rm plugins-stamp
+	-rm doc/changelog
 
 $(edit_files): Makefile $@
 	$(edit) '$@.in' > $@
