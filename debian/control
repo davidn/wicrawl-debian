@@ -7,7 +7,7 @@ Standards-Version: 3.7.3
 
 Package: wicrawl
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends}, libxml-smart-perl, libgtk2-perl
 Recommends: wicrawl-plugins
 Description: a simple wi-fi (802.11x) Access Point auditor
  Wicrawl is a simple wi-fi (802.11x) Access Point auditor with a simple and 
