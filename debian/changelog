@@ -1,4 +1,4 @@
-wicrawl (0.4a+CVS20080506+david3-1) UNRELEASED; urgency=low
+wicrawl (0.4a+CVS20080506+david5-1) UNRELEASED; urgency=low
 
   * Initial release (Closes: #393610)
     Debianised using dh_make.
